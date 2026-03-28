@@ -1,0 +1,10 @@
+{
+  "buildCommand": "next build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "regions": ["iad1"],
+  "env": {
+    "AWS_REGION": "us-east-1",
+    "DYNAMODB_TABLE": "diagramos-diagrams"
+  }
+}

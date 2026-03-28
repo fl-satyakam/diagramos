@@ -22,6 +22,8 @@ export interface Diagram {
 
 export type SyncStatus = "synced" | "syncing" | "diverged" | "error";
 export type ActivePane = "code" | "canvas" | null;
+export type ViewState = "home" | "editor";
+export type AIModel = "gemini" | "opus" | "sonnet";
 
 interface ChatMessage {
   id: string;
@@ -59,6 +61,14 @@ interface DiagramStore {
   // Sync
   syncStatus: SyncStatus;
   activePane: ActivePane;
+
+  // View state
+  view: ViewState;
+  setView: (view: ViewState) => void;
+
+  // AI model
+  aiModel: AIModel;
+  setAiModel: (model: AIModel) => void;
 
   // UI state
   sidebarOpen: boolean;
@@ -181,11 +191,16 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
   mermaidCode: DEFAULT_MERMAID,
   syncStatus: "synced",
   activePane: null,
+  view: "home",
+  aiModel: "gemini",
   sidebarOpen: true,
   chatOpen: false,
   chatMessages: [],
   history: [],
   historyIndex: -1,
+
+  setView: (view) => set({ view }),
+  setAiModel: (aiModel) => set({ aiModel }),
 
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
@@ -258,6 +273,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
       syncStatus: "diverged",
       history: [],
       historyIndex: -1,
+      view: "editor" as ViewState,
     }));
     get().saveDiagram();
     return id;
@@ -319,6 +335,9 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
   setActiveDiagram: (id) => {
     // Save current diagram first
     get().saveDiagram();
+
+    // Switch to editor view
+    set({ view: "editor" });
 
     // Fetch full diagram from server (may have nodes/edges not in list response)
     fetch(`/api/diagrams?id=${encodeURIComponent(id)}`)

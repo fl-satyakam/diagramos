@@ -29,6 +29,7 @@ import {
   ArrowLeftToLine,
   Save,
   MessageSquare,
+  Home,
 } from "lucide-react";
 import { toPng, toSvg } from "html-to-image";
 
@@ -46,6 +47,7 @@ export default function Toolbar() {
   const activeDiagramId = useDiagramStore((s) => s.activeDiagramId);
   const diagrams = useDiagramStore((s) => s.diagrams);
   const saveDiagram = useDiagramStore((s) => s.saveDiagram);
+  const setView = useDiagramStore((s) => s.setView);
 
   const [syncing, setSyncing] = useState<"code" | "canvas" | null>(null);
   const [saveAnimating, setSaveAnimating] = useState(false);
@@ -179,6 +181,21 @@ export default function Toolbar() {
     <div className="flex items-center justify-between h-11 px-3 border-b border-gray-200 bg-white">
       {/* Left */}
       <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+          onClick={() => {
+            saveDiagram();
+            setView("home");
+          }}
+          title="Back to dashboard"
+        >
+          <Home className="h-3.5 w-3.5" />
+        </Button>
+
+        <div className="h-4 w-px bg-gray-200 mx-1" />
+
         <Button
           variant="ghost"
           size="icon"

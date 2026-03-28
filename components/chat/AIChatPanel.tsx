@@ -1,11 +1,21 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useDiagramStore } from "@/lib/store";
+import { useDiagramStore, type AIModel } from "@/lib/store";
 import { syncCodeToCanvas } from "@/lib/sync/sync-engine";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Send, X, Sparkles, Trash2 } from "lucide-react";
+import { Send, X, Sparkles, Trash2, ChevronDown } from "lucide-react";
+
+const MODEL_OPTIONS: { value: AIModel; label: string; badge?: string }[] = [
+  { value: "gemini", label: "Gemini Flash" },
+  { value: "sonnet", label: "Claude Sonnet", badge: "Bedrock" },
+  { value: "opus", label: "Claude Opus", badge: "Bedrock" },
+];
+
+function ModelLabel(model: AIModel): string {
+  return MODEL_OPTIONS.find((m) => m.value === model)?.label || "Gemini Flash";
+}
 
 export default function AIChatPanel() {
   const chatMessages = useDiagramStore((s) => s.chatMessages);
@@ -13,11 +23,15 @@ export default function AIChatPanel() {
   const clearChat = useDiagramStore((s) => s.clearChat);
   const toggleChat = useDiagramStore((s) => s.toggleChat);
   const mermaidCode = useDiagramStore((s) => s.mermaidCode);
+  const aiModel = useDiagramStore((s) => s.aiModel);
+  const setAiModel = useDiagramStore((s) => s.setAiModel);
 
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const modelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -28,6 +42,19 @@ export default function AIChatPanel() {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Close model picker on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (modelRef.current && !modelRef.current.contains(e.target as HTMLElement)) {
+        setModelPickerOpen(false);
+      }
+    }
+    if (modelPickerOpen) {
+      document.addEventListener("mousedown", handleClick);
+      return () => document.removeEventListener("mousedown", handleClick);
+    }
+  }, [modelPickerOpen]);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -49,6 +76,7 @@ export default function AIChatPanel() {
           message,
           currentMermaid: mermaidCode,
           history,
+          model: aiModel,
         }),
       });
 
@@ -205,9 +233,54 @@ export default function AIChatPanel() {
             <Send className="h-3.5 w-3.5" />
           </Button>
         </div>
-        <p className="text-[9px] text-gray-400 mt-1.5 px-1">
-          Powered by Gemini · Ask questions or request edits
-        </p>
+
+        {/* Model picker */}
+        <div className="flex items-center justify-between mt-2 px-1" ref={modelRef}>
+          <div className="relative">
+            <button
+              onClick={() => setModelPickerOpen(!modelPickerOpen)}
+              className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <span>Model: {ModelLabel(aiModel)}</span>
+              <ChevronDown className="h-2.5 w-2.5" />
+            </button>
+
+            {modelPickerOpen && (
+              <div className="absolute bottom-full left-0 mb-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[180px] z-50">
+                {MODEL_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => {
+                      setAiModel(opt.value);
+                      setModelPickerOpen(false);
+                    }}
+                    className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-gray-50 transition-colors ${
+                      aiModel === opt.value
+                        ? "text-gray-900 font-medium"
+                        : "text-gray-600"
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                    <span className="flex items-center gap-1.5">
+                      {opt.badge && (
+                        <span className="text-[9px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                          {opt.badge}
+                        </span>
+                      )}
+                      {aiModel === opt.value && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                      )}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <span className="text-[9px] text-gray-300">
+            {aiModel === "gemini" ? "Gemini" : "Bedrock"}
+          </span>
+        </div>
       </div>
     </div>
   );

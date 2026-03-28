@@ -7,6 +7,7 @@ import { syncCodeToCanvas } from "@/lib/sync/sync-engine";
 import DiagramLibrary from "@/components/sidebar/DiagramLibrary";
 import Toolbar from "@/components/toolbar/Toolbar";
 import FormatToolbar from "@/components/toolbar/FormatToolbar";
+import Dashboard from "@/components/dashboard/Dashboard";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const DiagramCanvas = dynamic(
@@ -22,20 +23,14 @@ const AIChatPanel = dynamic(
   { ssr: false }
 );
 
-export default function Home() {
+function EditorView() {
   const sidebarOpen = useDiagramStore((s) => s.sidebarOpen);
   const chatOpen = useDiagramStore((s) => s.chatOpen);
-  const loadDiagrams = useDiagramStore((s) => s.loadDiagrams);
   const toggleSidebar = useDiagramStore((s) => s.toggleSidebar);
   const toggleChat = useDiagramStore((s) => s.toggleChat);
   const undo = useDiagramStore((s) => s.undo);
   const redo = useDiagramStore((s) => s.redo);
   const saveDiagram = useDiagramStore((s) => s.saveDiagram);
-
-  // Load diagrams on mount
-  useEffect(() => {
-    loadDiagrams();
-  }, [loadDiagrams]);
 
   // Initial parse on load
   useEffect(() => {
@@ -86,30 +81,44 @@ export default function Home() {
   }, [handleKeyDown]);
 
   return (
-    <TooltipProvider>
-      <div className="h-screen w-screen flex flex-col bg-gray-50 text-gray-900 overflow-hidden">
-        <Toolbar />
+    <div className="h-screen w-screen flex flex-col bg-gray-50 text-gray-900 overflow-hidden">
+      <Toolbar />
 
-        <div className="flex flex-1 min-h-0 relative">
-          {/* Sidebar */}
-          {sidebarOpen && <DiagramLibrary />}
+      <div className="flex flex-1 min-h-0 relative">
+        {/* Sidebar */}
+        {sidebarOpen && <DiagramLibrary />}
 
-          {/* Canvas */}
-          <div className="flex-1 min-w-0 relative">
-            <DiagramCanvas />
-            {/* Format Toolbar - floating over canvas */}
-            <FormatToolbar />
-          </div>
-
-          {/* Code Editor */}
-          <div className="w-[400px] border-l border-gray-200 flex-shrink-0">
-            <CodeEditor />
-          </div>
-
-          {/* AI Chat */}
-          {chatOpen && <AIChatPanel />}
+        {/* Canvas */}
+        <div className="flex-1 min-w-0 relative">
+          <DiagramCanvas />
+          {/* Format Toolbar - floating over canvas */}
+          <FormatToolbar />
         </div>
+
+        {/* Code Editor */}
+        <div className="w-[400px] border-l border-gray-200 flex-shrink-0">
+          <CodeEditor />
+        </div>
+
+        {/* AI Chat */}
+        {chatOpen && <AIChatPanel />}
       </div>
+    </div>
+  );
+}
+
+export default function Home() {
+  const view = useDiagramStore((s) => s.view);
+  const loadDiagrams = useDiagramStore((s) => s.loadDiagrams);
+
+  // Load diagrams on mount
+  useEffect(() => {
+    loadDiagrams();
+  }, [loadDiagrams]);
+
+  return (
+    <TooltipProvider>
+      {view === "home" ? <Dashboard /> : <EditorView />}
     </TooltipProvider>
   );
 }

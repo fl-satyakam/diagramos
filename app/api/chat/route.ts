@@ -1,4 +1,8 @@
 import { NextResponse } from "next/server";
+import {
+  BedrockRuntimeClient,
+  InvokeModelCommand,
+} from "@aws-sdk/client-bedrock-runtime";
 
 const SYSTEM_PROMPT = `You are DiagramOS AI — a smart assistant that helps users with Mermaid diagrams.
 
@@ -22,7 +26,23 @@ Just respond naturally as a helpful assistant. Be concise but informative.
 
 CONTEXT: The user will provide their current Mermaid diagram. Use it to understand what they're working with.`;
 
-function parseResponse(text: string): { mermaidCode: string | null; explanation: string } {
+const BEDROCK_MODEL_MAP: Record<string, string> = {
+  opus: "us.anthropic.claude-opus-4-6-v1",
+  sonnet: "us.anthropic.claude-sonnet-4-6",
+};
+
+let bedrockClient: BedrockRuntimeClient | null = null;
+function getBedrockClient(): BedrockRuntimeClient {
+  if (!bedrockClient) {
+    bedrockClient = new BedrockRuntimeClient({ region: "us-east-1" });
+  }
+  return bedrockClient;
+}
+
+function parseResponse(text: string): {
+  mermaidCode: string | null;
+  explanation: string;
+} {
   const mermaidMatch = text.match(/<mermaid>\s*([\s\S]*?)\s*<\/mermaid>/);
   if (mermaidMatch) {
     const mermaidCode = mermaidMatch[1].trim();
@@ -34,18 +54,28 @@ function parseResponse(text: string): { mermaidCode: string | null; explanation:
 
 export async function POST(req: Request) {
   try {
-    const { message, currentMermaid, history } = await req.json();
+    const { message, currentMermaid, history, model } = await req.json();
 
     if (!message) {
       return NextResponse.json({ error: "Missing message" }, { status: 400 });
     }
 
-    // Build conversation messages
+    // Build conversation context
     const conversationContext = currentMermaid
       ? `Current diagram:\n\`\`\`mermaid\n${currentMermaid}\n\`\`\``
       : "No diagram loaded yet.";
 
-    // Priority: Gemini → Anthropic → OpenAI
+    // Route based on model selection
+    if (model === "opus" || model === "sonnet") {
+      return await callBedrock(
+        message,
+        conversationContext,
+        history || [],
+        BEDROCK_MODEL_MAP[model]
+      );
+    }
+
+    // Default: Gemini → Anthropic API → OpenAI (fallback chain)
     if (process.env.GEMINI_API_KEY) {
       return await callGemini(message, conversationContext, history || []);
     }
@@ -57,13 +87,72 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(
-      { error: "No API key configured. Set GEMINI_API_KEY in .env.local to enable AI features." },
+      {
+        error:
+          "No API key configured. Set GEMINI_API_KEY in .env.local to enable AI features.",
+      },
       { status: 503 }
     );
   } catch (err) {
     return NextResponse.json(
       { error: "Chat failed", details: String(err) },
       { status: 500 }
+    );
+  }
+}
+
+async function callBedrock(
+  message: string,
+  context: string,
+  history: { role: string; content: string }[],
+  modelId: string
+) {
+  const client = getBedrockClient();
+
+  const messages: { role: string; content: string }[] = [
+    { role: "user", content: context },
+    {
+      role: "assistant",
+      content: "I can see your diagram. How can I help?",
+    },
+  ];
+
+  const recentHistory = history.slice(-10);
+  for (const msg of recentHistory) {
+    messages.push({
+      role: msg.role === "user" ? "user" : "assistant",
+      content: msg.content,
+    });
+  }
+  messages.push({ role: "user", content: message });
+
+  try {
+    const response = await client.send(
+      new InvokeModelCommand({
+        modelId,
+        contentType: "application/json",
+        accept: "application/json",
+        body: JSON.stringify({
+          anthropic_version: "bedrock-2023-05-31",
+          max_tokens: 4096,
+          system: SYSTEM_PROMPT,
+          messages,
+          temperature: 0.4,
+        }),
+      })
+    );
+
+    const data = JSON.parse(new TextDecoder().decode(response.body));
+    const text = data.content?.[0]?.text || "";
+    const { mermaidCode, explanation } = parseResponse(text);
+
+    return NextResponse.json({ mermaidCode, explanation });
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : String(err);
+    return NextResponse.json(
+      { error: `Bedrock API error: ${errorMessage}` },
+      { status: 502 }
     );
   }
 }
@@ -81,7 +170,10 @@ async function callGemini(
 
   // Add context as first user message
   contents.push({ role: "user", parts: [{ text: context }] });
-  contents.push({ role: "model", parts: [{ text: "I can see your diagram. How can I help?" }] });
+  contents.push({
+    role: "model",
+    parts: [{ text: "I can see your diagram. How can I help?" }],
+  });
 
   // Add conversation history (last 10 messages max)
   const recentHistory = history.slice(-10);
@@ -107,11 +199,15 @@ async function callGemini(
 
   if (!res.ok) {
     const error = await res.text();
-    return NextResponse.json({ error: `Gemini API error: ${error}` }, { status: 502 });
+    return NextResponse.json(
+      { error: `Gemini API error: ${error}` },
+      { status: 502 }
+    );
   }
 
   const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  const text =
+    data.candidates?.[0]?.content?.parts?.[0]?.text || "";
   const { mermaidCode, explanation } = parseResponse(text);
 
   return NextResponse.json({ mermaidCode, explanation });
@@ -124,12 +220,18 @@ async function callAnthropic(
 ) {
   const messages: any[] = [
     { role: "user", content: context },
-    { role: "assistant", content: "I can see your diagram. How can I help?" },
+    {
+      role: "assistant",
+      content: "I can see your diagram. How can I help?",
+    },
   ];
 
   const recentHistory = history.slice(-10);
   for (const msg of recentHistory) {
-    messages.push({ role: msg.role === "user" ? "user" : "assistant", content: msg.content });
+    messages.push({
+      role: msg.role === "user" ? "user" : "assistant",
+      content: msg.content,
+    });
   }
   messages.push({ role: "user", content: message });
 
@@ -151,7 +253,10 @@ async function callAnthropic(
 
   if (!res.ok) {
     const error = await res.text();
-    return NextResponse.json({ error: `Anthropic API error: ${error}` }, { status: 502 });
+    return NextResponse.json(
+      { error: `Anthropic API error: ${error}` },
+      { status: 502 }
+    );
   }
 
   const data = await res.json();
@@ -169,12 +274,18 @@ async function callOpenAI(
   const messages: any[] = [
     { role: "system", content: SYSTEM_PROMPT },
     { role: "user", content: context },
-    { role: "assistant", content: "I can see your diagram. How can I help?" },
+    {
+      role: "assistant",
+      content: "I can see your diagram. How can I help?",
+    },
   ];
 
   const recentHistory = history.slice(-10);
   for (const msg of recentHistory) {
-    messages.push({ role: msg.role === "user" ? "user" : "assistant", content: msg.content });
+    messages.push({
+      role: msg.role === "user" ? "user" : "assistant",
+      content: msg.content,
+    });
   }
   messages.push({ role: "user", content: message });
 
@@ -194,11 +305,15 @@ async function callOpenAI(
 
   if (!res.ok) {
     const error = await res.text();
-    return NextResponse.json({ error: `OpenAI API error: ${error}` }, { status: 502 });
+    return NextResponse.json(
+      { error: `OpenAI API error: ${error}` },
+      { status: 502 }
+    );
   }
 
   const data = await res.json();
-  const text = data.choices?.[0]?.message?.content || "";
+  const text =
+    data.choices?.[0]?.message?.content || "";
   const { mermaidCode, explanation } = parseResponse(text);
 
   return NextResponse.json({ mermaidCode, explanation });
