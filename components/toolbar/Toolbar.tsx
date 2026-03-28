@@ -64,7 +64,12 @@ export default function Toolbar() {
     setSyncing(null);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    // First sync canvas → code so the mermaid editor is up to date
+    setSyncing("code");
+    await syncCanvasToCode();
+    setSyncing(null);
+    // Then persist everything to localStorage
     saveDiagram();
     useDiagramStore.setState({ syncStatus: "synced" });
     setSaveAnimating(true);
