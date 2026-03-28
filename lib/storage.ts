@@ -31,11 +31,7 @@ export interface StoredDiagram {
 
 export async function listDiagrams(): Promise<StoredDiagram[]> {
   const result = await docClient.send(
-    new ScanCommand({
-      TableName: TABLE_NAME,
-      ProjectionExpression: "id, #n, updatedAt, createdAt, tags",
-      ExpressionAttributeNames: { "#n": "name" },
-    })
+    new ScanCommand({ TableName: TABLE_NAME })
   );
   const items = (result.Items || []) as StoredDiagram[];
   return items.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));

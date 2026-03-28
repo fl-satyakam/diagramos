@@ -264,6 +264,10 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
   },
 
   deleteDiagram: (id) => {
+    // Delete from server
+    fetch(`/api/diagrams?id=${encodeURIComponent(id)}`, { method: "DELETE" })
+      .catch((err) => console.warn("Server delete failed:", err));
+
     set((state) => {
       const diagrams = state.diagrams.filter((d) => d.id !== id);
       const isActive = state.activeDiagramId === id;
@@ -273,8 +277,8 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
           ? {
               activeDiagramId: diagrams[0].id,
               mermaidCode: diagrams[0].mermaidCode,
-              nodes: diagrams[0].nodes,
-              edges: diagrams[0].edges,
+              nodes: diagrams[0].nodes || [],
+              edges: diagrams[0].edges || [],
             }
           : isActive
           ? {
@@ -286,7 +290,6 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
           : {}),
       };
     });
-    get().saveDiagram();
   },
 
   renameDiagram: (id, name) => {
@@ -295,23 +298,76 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
         d.id === id ? { ...d, name, updatedAt: Date.now() } : d
       ),
     }));
-    get().saveDiagram();
+    // Save to server with new name
+    const diagram = get().diagrams.find((d) => d.id === id);
+    if (diagram) {
+      fetch("/api/diagrams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: diagram.id,
+          name: diagram.name,
+          mermaidCode: diagram.mermaidCode,
+          nodes: diagram.nodes || [],
+          edges: diagram.edges || [],
+          tags: [],
+        }),
+      }).catch((err) => console.warn("Server rename failed:", err));
+    }
   },
 
   setActiveDiagram: (id) => {
-    const diagram = get().diagrams.find((d) => d.id === id);
-    if (!diagram) return;
+    // Save current diagram first
     get().saveDiagram();
-    set({
-      activeDiagramId: id,
-      mermaidCode: diagram.mermaidCode,
-      nodes: diagram.nodes,
-      edges: diagram.edges,
-      syncStatus: "synced",
-      history: [],
-      historyIndex: -1,
-      chatMessages: [],
-    });
+
+    // Fetch full diagram from server (may have nodes/edges not in list response)
+    fetch(`/api/diagrams?id=${encodeURIComponent(id)}`)
+      .then((res) => res.json())
+      .then((serverDiagram) => {
+        if (serverDiagram && serverDiagram.mermaidCode) {
+          set({
+            activeDiagramId: id,
+            mermaidCode: serverDiagram.mermaidCode,
+            nodes: serverDiagram.nodes || [],
+            edges: serverDiagram.edges || [],
+            syncStatus: "synced",
+            history: [],
+            historyIndex: -1,
+            chatMessages: [],
+          });
+          // Update local diagrams array with full data
+          set((state) => ({
+            diagrams: state.diagrams.map((d) =>
+              d.id === id
+                ? {
+                    ...d,
+                    mermaidCode: serverDiagram.mermaidCode,
+                    nodes: serverDiagram.nodes || [],
+                    edges: serverDiagram.edges || [],
+                  }
+                : d
+            ),
+          }));
+        }
+      })
+      .catch(() => {
+        // Fallback to local data
+        const diagram = get().diagrams.find((d) => d.id === id);
+        if (!diagram) return;
+        set({
+          activeDiagramId: id,
+          mermaidCode: diagram.mermaidCode,
+          nodes: diagram.nodes || [],
+          edges: diagram.edges || [],
+          syncStatus: "synced",
+          history: [],
+          historyIndex: -1,
+          chatMessages: [],
+        });
+      });
+
+    // Set active immediately for UI responsiveness
+    set({ activeDiagramId: id });
   },
 
   saveDiagram: () => {
@@ -359,40 +415,54 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
   },
 
   loadDiagrams: () => {
-    // Try loading from server first, fall back to localStorage
+    // Load full diagram list from server
     fetch("/api/diagrams")
       .then((res) => res.json())
-      .then((data) => {
-        const serverDiagrams = data.diagrams || [];
-        if (serverDiagrams.length > 0) {
-          // Convert server format to local format
-          const diagrams: Diagram[] = serverDiagrams.map((d: any) => ({
-            id: d.id,
-            name: d.name,
-            mermaidCode: d.mermaidCode || DEFAULT_MERMAID,
-            nodes: d.nodes || [],
-            edges: d.edges || [],
-            createdAt: d.createdAt ? new Date(d.createdAt).getTime() : Date.now(),
-            updatedAt: d.updatedAt ? new Date(d.updatedAt).getTime() : Date.now(),
-          }));
+      .then(async (data) => {
+        const serverList = data.diagrams || [];
+        if (serverList.length > 0) {
+          // Fetch full data for each diagram
+          const fullDiagrams: Diagram[] = await Promise.all(
+            serverList.map(async (d: any) => {
+              try {
+                const res = await fetch(`/api/diagrams?id=${encodeURIComponent(d.id)}`);
+                const full = await res.json();
+                return {
+                  id: full.id,
+                  name: full.name,
+                  mermaidCode: full.mermaidCode || DEFAULT_MERMAID,
+                  nodes: full.nodes || [],
+                  edges: full.edges || [],
+                  createdAt: full.createdAt ? new Date(full.createdAt).getTime() : Date.now(),
+                  updatedAt: full.updatedAt ? new Date(full.updatedAt).getTime() : Date.now(),
+                };
+              } catch {
+                return {
+                  id: d.id,
+                  name: d.name || "Untitled",
+                  mermaidCode: DEFAULT_MERMAID,
+                  nodes: [],
+                  edges: [],
+                  createdAt: Date.now(),
+                  updatedAt: Date.now(),
+                };
+              }
+            })
+          );
+
           set({
-            diagrams,
-            activeDiagramId: diagrams[0].id,
-            mermaidCode: diagrams[0].mermaidCode,
-            nodes: diagrams[0].nodes || [],
-            edges: diagrams[0].edges || [],
+            diagrams: fullDiagrams,
+            activeDiagramId: fullDiagrams[0].id,
+            mermaidCode: fullDiagrams[0].mermaidCode,
+            nodes: fullDiagrams[0].nodes || [],
+            edges: fullDiagrams[0].edges || [],
           });
-          // Update localStorage as cache
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(diagrams));
-          } catch {}
           return;
         }
-        // No server diagrams — try localStorage
+        // No server diagrams — try localStorage then create default
         loadFromLocalStorage();
       })
       .catch(() => {
-        // Server unreachable — use localStorage
         loadFromLocalStorage();
       });
 
