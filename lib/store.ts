@@ -191,16 +191,32 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
   setEdges: (edges) => set({ edges }),
 
   onNodesChange: (changes) =>
-    set((state) => ({
-      nodes: applyNodeChanges(changes, state.nodes),
-      activePane: "canvas",
-    })),
+    set((state) => {
+      // Only mark diverged for structural changes, not just selection/position
+      const isStructural = changes.some(
+        (c) => c.type === "add" || c.type === "remove" || c.type === "replace"
+      );
+      const isDrag = changes.some(
+        (c) => c.type === "position" && c.dragging === false
+      );
+      return {
+        nodes: applyNodeChanges(changes, state.nodes),
+        activePane: "canvas",
+        ...(isStructural || isDrag ? { syncStatus: "diverged" as SyncStatus } : {}),
+      };
+    }),
 
   onEdgesChange: (changes) =>
-    set((state) => ({
-      edges: applyEdgeChanges(changes, state.edges),
-      activePane: "canvas",
-    })),
+    set((state) => {
+      const isStructural = changes.some(
+        (c) => c.type === "add" || c.type === "remove" || c.type === "replace"
+      );
+      return {
+        edges: applyEdgeChanges(changes, state.edges),
+        activePane: "canvas",
+        ...(isStructural ? { syncStatus: "diverged" as SyncStatus } : {}),
+      };
+    }),
 
   onConnect: (connection) =>
     set((state) => ({
@@ -214,6 +230,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
         state.edges
       ),
       activePane: "canvas",
+      syncStatus: "diverged",
     })),
 
   setMermaidCode: (code) => set({ mermaidCode: code, activePane: "code" }),
@@ -383,6 +400,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
         n.id === nodeId ? { ...n, data: { ...n.data, label } } : n
       ),
       activePane: "canvas",
+      syncStatus: "diverged",
     })),
 
   updateEdgeLabel: (edgeId, label) =>
@@ -391,6 +409,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
         e.id === edgeId ? { ...e, label } : e
       ),
       activePane: "canvas",
+      syncStatus: "diverged",
     })),
 
   deleteSelected: () =>
@@ -398,6 +417,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
       nodes: state.nodes.filter((n) => !n.selected),
       edges: state.edges.filter((e) => !e.selected),
       activePane: "canvas",
+      syncStatus: "diverged",
     })),
 
   addNode: (label, position) => {
@@ -417,6 +437,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
         },
       ],
       activePane: "canvas",
+      syncStatus: "diverged",
     }));
   },
 
@@ -437,6 +458,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
         },
       ],
       activePane: "canvas",
+      syncStatus: "diverged",
     }));
   },
 
@@ -448,6 +470,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
           : n
       ),
       activePane: "canvas",
+      syncStatus: "diverged",
     })),
 
   updateEdgeStyle: (edgeId, style) =>
@@ -461,5 +484,6 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
           : e
       ),
       activePane: "canvas",
+      syncStatus: "diverged",
     })),
 }));

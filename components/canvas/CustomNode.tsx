@@ -1,7 +1,7 @@
 "use client";
 
-import { memo, useState, useCallback, useRef, useEffect, type FC } from "react";
-import { Handle, Position, type NodeProps, useReactFlow } from "@xyflow/react";
+import { memo, useState, useCallback, useRef, type FC } from "react";
+import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { useDiagramStore } from "@/lib/store";
 
 const shapeClasses: Record<string, string> = {
@@ -24,25 +24,26 @@ const PASTEL_COLORS: Record<string, { bg: string; border: string }> = {
 
 const CustomNode: FC<NodeProps> = ({ id, data, selected }) => {
   const [editing, setEditing] = useState(false);
-  const [label, setLabel] = useState((data as { label?: string })?.label || "");
-  const [resizing, setResizing] = useState(false);
-  const [nodeSize, setNodeSize] = useState({ width: 0, height: 0 });
+  const [label, setLabel] = useState((data as any)?.label || "");
   const nodeRef = useRef<HTMLDivElement>(null);
-  const startPos = useRef({ x: 0, y: 0, w: 0, h: 0 });
   const updateNodeLabel = useDiagramStore((s) => s.updateNodeLabel);
-  const shape = (data as { shape?: string })?.shape || "rect";
-  const color = (data as { color?: string })?.color || "white";
-  const borderStyle = (data as { borderStyle?: string })?.borderStyle || "solid";
-  const fontSize = (data as { fontSize?: string })?.fontSize;
+  const setNodes = useDiagramStore((s) => s.setNodes);
+  const nodes = useDiagramStore((s) => s.nodes);
+
+  const shape = (data as any)?.shape || "rect";
+  const color = (data as any)?.color || "white";
+  const borderStyle = (data as any)?.borderStyle || "solid";
+  const fontSize = (data as any)?.fontSize;
+  const nodeWidth = (data as any)?.width;
+  const nodeHeight = (data as any)?.height;
 
   const colorSet = PASTEL_COLORS[color] || PASTEL_COLORS.white;
   const isDiamond = shape === "diamond";
-  const isPill = shape === "pill";
   const isRound = shape === "round";
 
   const handleDoubleClick = useCallback(() => {
     setEditing(true);
-    setLabel((data as { label?: string })?.label || "");
+    setLabel((data as any)?.label || "");
   }, [data]);
 
   const handleBlur = useCallback(() => {
@@ -58,37 +59,42 @@ const CustomNode: FC<NodeProps> = ({ id, data, selected }) => {
       }
       if (e.key === "Escape") {
         setEditing(false);
-        setLabel((data as { label?: string })?.label || "");
+        setLabel((data as any)?.label || "");
       }
     },
     [id, label, data, updateNodeLabel]
   );
 
-  // Resize handlers
+  // Resize via mouse drag — writes dimensions into node.data so it persists
   const handleResizeStart = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
-      setResizing(true);
       const rect = nodeRef.current?.getBoundingClientRect();
-      startPos.current = {
-        x: e.clientX,
-        y: e.clientY,
-        w: rect?.width || 120,
-        h: rect?.height || 40,
-      };
+      if (!rect) return;
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startW = rect.width;
+      const startH = rect.height;
 
       const handleMouseMove = (ev: MouseEvent) => {
-        const dx = ev.clientX - startPos.current.x;
-        const dy = ev.clientY - startPos.current.y;
-        setNodeSize({
-          width: Math.max(80, startPos.current.w + dx),
-          height: Math.max(32, startPos.current.h + dy),
-        });
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        const newW = Math.max(80, startW + dx);
+        const newH = Math.max(32, startH + dy);
+
+        // Write directly to node data for persistence
+        const updated = nodes.map((n) =>
+          n.id === id
+            ? { ...n, data: { ...n.data, width: newW, height: newH } }
+            : n
+        );
+        setNodes(updated);
       };
 
       const handleMouseUp = () => {
-        setResizing(false);
+        useDiagramStore.setState({ syncStatus: "diverged" });
         window.removeEventListener("mousemove", handleMouseMove);
         window.removeEventListener("mouseup", handleMouseUp);
       };
@@ -96,17 +102,21 @@ const CustomNode: FC<NodeProps> = ({ id, data, selected }) => {
       window.addEventListener("mousemove", handleMouseMove);
       window.addEventListener("mouseup", handleMouseUp);
     },
-    []
+    [id, nodes, setNodes]
   );
 
-  const sizeStyle: React.CSSProperties =
-    nodeSize.width > 0
-      ? { width: nodeSize.width, height: nodeSize.height }
-      : isDiamond
-      ? { width: 100, height: 100 }
-      : isRound
-      ? { width: 80, height: 80 }
-      : {};
+  // Build size style
+  const sizeStyle: React.CSSProperties = {};
+  if (nodeWidth && nodeHeight) {
+    sizeStyle.width = nodeWidth;
+    sizeStyle.height = nodeHeight;
+  } else if (isDiamond) {
+    sizeStyle.width = 100;
+    sizeStyle.height = 100;
+  } else if (isRound) {
+    sizeStyle.width = 80;
+    sizeStyle.height = 80;
+  }
 
   return (
     <div
@@ -115,7 +125,7 @@ const CustomNode: FC<NodeProps> = ({ id, data, selected }) => {
         group relative text-center transition-all duration-150
         ${shapeClasses[shape] || shapeClasses.rect}
         ${isDiamond ? "flex items-center justify-center" : "px-4 py-2"}
-        ${isPill ? "px-6 py-2" : ""}
+        ${shape === "pill" ? "px-6 py-2" : ""}
         ${isRound ? "flex items-center justify-center" : ""}
         ${selected ? "ring-2 ring-blue-500 ring-offset-1" : ""}
       `}
@@ -131,10 +141,11 @@ const CustomNode: FC<NodeProps> = ({ id, data, selected }) => {
         fontSize: fontSize || "0.875rem",
         color: "#1f2937",
         ...sizeStyle,
+        overflow: "hidden",
       }}
       onDoubleClick={handleDoubleClick}
     >
-      {/* Handles - subtle, appear on hover */}
+      {/* Handles */}
       <Handle
         type="target"
         position={Position.Top}
@@ -175,30 +186,21 @@ const CustomNode: FC<NodeProps> = ({ id, data, selected }) => {
         <span
           className={`
             ${isDiamond ? "-rotate-45 block text-xs" : "text-sm"}
-            font-medium text-gray-700
+            font-medium text-gray-700 select-none
           `}
         >
-          {(data as { label?: string })?.label || id}
+          {(data as any)?.label || id}
         </span>
       )}
 
-      {/* Resize handle - bottom right corner */}
+      {/* Resize handle — visible when selected */}
       {selected && !isDiamond && (
         <div
           onMouseDown={handleResizeStart}
-          className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize z-10"
-          style={{
-            background: "transparent",
-          }}
+          className="absolute -bottom-1 -right-1 w-4 h-4 cursor-se-resize z-10 flex items-center justify-center"
+          title="Drag to resize"
         >
-          <svg
-            width="8"
-            height="8"
-            viewBox="0 0 8 8"
-            className="absolute bottom-0.5 right-0.5"
-          >
-            <path d="M8 0L8 8L0 8Z" fill="#93C5FD" />
-          </svg>
+          <div className="w-2.5 h-2.5 rounded-sm bg-blue-500 border border-blue-600 shadow-sm" />
         </div>
       )}
     </div>
