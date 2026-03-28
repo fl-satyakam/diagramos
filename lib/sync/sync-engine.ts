@@ -1,9 +1,45 @@
 import { parseMermaidToFlow } from "./mermaid-to-flow";
 import { useDiagramStore } from "../store";
 
+const POSITION_KEY = "diagramos-positions";
+
+/** Save node positions to localStorage so they survive sync/refresh */
+function savePositionMap() {
+  const { nodes, activeDiagramId } = useDiagramStore.getState();
+  if (!activeDiagramId) return;
+
+  try {
+    const existing = JSON.parse(localStorage.getItem(POSITION_KEY) || "{}");
+    const posMap: Record<string, { x: number; y: number; width?: number; height?: number }> = {};
+    for (const n of nodes) {
+      posMap[n.id] = {
+        x: n.position.x,
+        y: n.position.y,
+        ...((n.data as any)?.width ? { width: (n.data as any).width } : {}),
+        ...((n.data as any)?.height ? { height: (n.data as any).height } : {}),
+      };
+    }
+    existing[activeDiagramId] = posMap;
+    localStorage.setItem(POSITION_KEY, JSON.stringify(existing));
+  } catch {}
+}
+
+/** Load saved positions for a diagram */
+function loadPositionMap(): Record<string, { x: number; y: number; width?: number; height?: number }> | null {
+  const { activeDiagramId } = useDiagramStore.getState();
+  if (!activeDiagramId) return null;
+
+  try {
+    const existing = JSON.parse(localStorage.getItem(POSITION_KEY) || "{}");
+    return existing[activeDiagramId] || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Manual sync: Code → Canvas
- * Deterministic parser, no LLM needed.
+ * Deterministic parser, then restores saved positions if available.
  */
 export async function syncCodeToCanvas() {
   const { mermaidCode, setSyncStatus, setNodes, setEdges, pushHistory } =
@@ -12,6 +48,22 @@ export async function syncCodeToCanvas() {
   setSyncStatus("syncing");
   try {
     const { nodes, edges } = await parseMermaidToFlow(mermaidCode);
+
+    // Restore saved positions (from previous saves or manual arrangements)
+    const posMap = loadPositionMap();
+    if (posMap) {
+      for (const node of nodes) {
+        const saved = posMap[node.id];
+        if (saved) {
+          node.position = { x: saved.x, y: saved.y };
+          if (saved.width || saved.height) {
+            (node.data as any).width = saved.width;
+            (node.data as any).height = saved.height;
+          }
+        }
+      }
+    }
+
     pushHistory();
     setNodes(nodes);
     setEdges(edges);
@@ -24,11 +76,14 @@ export async function syncCodeToCanvas() {
 
 /**
  * Manual sync: Canvas → Code
- * Uses LLM via /api/sync with deterministic fallback.
+ * Saves positions before syncing, uses LLM or deterministic fallback.
  */
 export async function syncCanvasToCode() {
   const { nodes, edges, setSyncStatus, pushHistory } =
     useDiagramStore.getState();
+
+  // Always save positions before syncing
+  savePositionMap();
 
   if (nodes.length === 0) {
     useDiagramStore.setState({ mermaidCode: "graph TD\n    A[Start]", syncStatus: "synced" });
@@ -68,20 +123,35 @@ export async function syncCanvasToCode() {
     }
   } catch (err) {
     console.error("Canvas → Code sync failed:", err);
-    // Deterministic client-side fallback
     const code = clientFallbackSync(nodes, edges);
     pushHistory();
     useDiagramStore.setState({ mermaidCode: code, syncStatus: "synced" });
   }
 }
 
+/** Also save positions when user hits Save */
+export function savePositions() {
+  savePositionMap();
+}
+
 /** Client-side deterministic fallback */
 function clientFallbackSync(nodes: any[], edges: any[]): string {
   const lines: string[] = ["graph TD"];
   for (const n of nodes) {
+    if (n.type === "comment") continue; // skip comment nodes from mermaid
     const id = sanitizeId(n.id);
     const label = (n.data as any)?.label || n.id;
-    lines.push(`    ${id}[${label}]`);
+    const shape = (n.data as any)?.shape || "rect";
+    switch (shape) {
+      case "diamond":
+        lines.push(`    ${id}{${label}}`);
+        break;
+      case "round":
+        lines.push(`    ${id}(${label})`);
+        break;
+      default:
+        lines.push(`    ${id}[${label}]`);
+    }
   }
   for (const e of edges) {
     const src = sanitizeId(e.source);

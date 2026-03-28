@@ -324,6 +324,22 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
     set({ diagrams: updated });
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      // Also save position map for sync restoration
+      if (activeDiagramId) {
+        const posKey = "diagramos-positions";
+        const existing = JSON.parse(localStorage.getItem(posKey) || "{}");
+        const posMap: Record<string, any> = {};
+        for (const n of nodes) {
+          posMap[n.id] = {
+            x: n.position.x,
+            y: n.position.y,
+            ...((n.data as any)?.width ? { width: (n.data as any).width } : {}),
+            ...((n.data as any)?.height ? { height: (n.data as any).height } : {}),
+          };
+        }
+        existing[activeDiagramId] = posMap;
+        localStorage.setItem(posKey, JSON.stringify(existing));
+      }
     } catch {}
   },
 

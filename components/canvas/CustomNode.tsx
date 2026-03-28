@@ -22,13 +22,19 @@ const PASTEL_COLORS: Record<string, { bg: string; border: string }> = {
   gray: { bg: "#F3F4F6", border: "#D1D5DB" },
 };
 
+const HANDLE_STYLE: React.CSSProperties = {
+  width: 10,
+  height: 10,
+  background: "#94a3b8",
+  border: "2px solid #cbd5e1",
+  borderRadius: "50%",
+};
+
 const CustomNode: FC<NodeProps> = ({ id, data, selected }) => {
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState((data as any)?.label || "");
   const nodeRef = useRef<HTMLDivElement>(null);
   const updateNodeLabel = useDiagramStore((s) => s.updateNodeLabel);
-  const setNodes = useDiagramStore((s) => s.setNodes);
-  const nodes = useDiagramStore((s) => s.nodes);
 
   const shape = (data as any)?.shape || "rect";
   const color = (data as any)?.color || "white";
@@ -65,7 +71,7 @@ const CustomNode: FC<NodeProps> = ({ id, data, selected }) => {
     [id, label, data, updateNodeLabel]
   );
 
-  // Resize via mouse drag — writes dimensions into node.data so it persists
+  // Resize via mouse drag — reads fresh state via getState() to avoid stale closure
   const handleResizeStart = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -78,31 +84,32 @@ const CustomNode: FC<NodeProps> = ({ id, data, selected }) => {
       const startW = rect.width;
       const startH = rect.height;
 
-      const handleMouseMove = (ev: MouseEvent) => {
+      const onMove = (ev: MouseEvent) => {
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
         const newW = Math.max(80, startW + dx);
         const newH = Math.max(32, startH + dy);
 
-        // Write directly to node data for persistence
+        // Use getState() for fresh nodes — avoids stale closure
+        const { nodes } = useDiagramStore.getState();
         const updated = nodes.map((n) =>
           n.id === id
             ? { ...n, data: { ...n.data, width: newW, height: newH } }
             : n
         );
-        setNodes(updated);
+        useDiagramStore.setState({ nodes: updated });
       };
 
-      const handleMouseUp = () => {
+      const onUp = () => {
         useDiagramStore.setState({ syncStatus: "diverged" });
-        window.removeEventListener("mousemove", handleMouseMove);
-        window.removeEventListener("mouseup", handleMouseUp);
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
       };
 
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
     },
-    [id, nodes, setNodes]
+    [id]
   );
 
   // Build size style
@@ -122,7 +129,7 @@ const CustomNode: FC<NodeProps> = ({ id, data, selected }) => {
     <div
       ref={nodeRef}
       className={`
-        group relative text-center transition-all duration-150
+        relative text-center transition-all duration-150
         ${shapeClasses[shape] || shapeClasses.rect}
         ${isDiamond ? "flex items-center justify-center" : "px-4 py-2"}
         ${shape === "pill" ? "px-6 py-2" : ""}
@@ -141,32 +148,31 @@ const CustomNode: FC<NodeProps> = ({ id, data, selected }) => {
         fontSize: fontSize || "0.875rem",
         color: "#1f2937",
         ...sizeStyle,
-        overflow: "hidden",
       }}
       onDoubleClick={handleDoubleClick}
     >
-      {/* Handles */}
+      {/* Connection Handles — always visible, styled as dots */}
       <Handle
         type="target"
         position={Position.Top}
-        className="!w-2 !h-2 !bg-gray-300 !border-gray-400 !-top-1 opacity-0 group-hover:opacity-100 transition-opacity"
+        style={{ ...HANDLE_STYLE, top: -5 }}
       />
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!w-2 !h-2 !bg-gray-300 !border-gray-400 !-bottom-1 opacity-0 group-hover:opacity-100 transition-opacity"
+        style={{ ...HANDLE_STYLE, bottom: -5 }}
       />
       <Handle
         type="target"
         position={Position.Left}
         id="left"
-        className="!w-2 !h-2 !bg-gray-300 !border-gray-400 !-left-1 opacity-0 group-hover:opacity-100 transition-opacity"
+        style={{ ...HANDLE_STYLE, left: -5 }}
       />
       <Handle
         type="source"
         position={Position.Right}
         id="right"
-        className="!w-2 !h-2 !bg-gray-300 !border-gray-400 !-right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+        style={{ ...HANDLE_STYLE, right: -5 }}
       />
 
       {editing ? (
@@ -193,14 +199,18 @@ const CustomNode: FC<NodeProps> = ({ id, data, selected }) => {
         </span>
       )}
 
-      {/* Resize handle — visible when selected */}
+      {/* Resize handle — blue square, bottom-right corner when selected */}
       {selected && !isDiamond && (
         <div
           onMouseDown={handleResizeStart}
-          className="absolute -bottom-1 -right-1 w-4 h-4 cursor-se-resize z-10 flex items-center justify-center"
+          className="nodrag nopan absolute w-3 h-3 cursor-se-resize z-20"
+          style={{ bottom: -6, right: -6 }}
           title="Drag to resize"
         >
-          <div className="w-2.5 h-2.5 rounded-sm bg-blue-500 border border-blue-600 shadow-sm" />
+          <div
+            className="w-3 h-3 rounded-sm bg-blue-500 border-2 border-white shadow"
+            style={{ pointerEvents: "none" }}
+          />
         </div>
       )}
     </div>
