@@ -148,18 +148,23 @@ const CustomEdge: FC<EdgeProps> = ({
               onMouseDown={(e) => e.stopPropagation()}
               style={{ pointerEvents: "all" }}
               className={`
-                w-7 h-7 rounded-full font-bold text-sm
+                group/btn w-6 h-6 rounded-full
                 flex items-center justify-center
-                transition-all duration-150 cursor-pointer
-                ${selected
-                  ? "bg-blue-100 text-blue-600 border-2 border-blue-400 shadow-sm"
-                  : "bg-white text-gray-400 border-2 border-gray-200 shadow-sm hover:text-blue-500 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md"
-                }
+                cursor-pointer
+                ${selected ? "" : ""}
               `}
               title="Click to add label"
               type="button"
             >
-              +
+              <span className={`
+                w-4 h-4 rounded-full font-bold text-[9px]
+                flex items-center justify-center
+                transition-all duration-200
+                ${selected
+                  ? "bg-blue-50 text-blue-500 border border-blue-300 shadow-sm scale-100"
+                  : "bg-white text-gray-400 border border-gray-200 shadow-sm scale-0 group-hover/btn:scale-100 group-hover/btn:text-blue-500 group-hover/btn:border-blue-300"
+                }
+              `}>+</span>
             </button>
           )}
         </div>
