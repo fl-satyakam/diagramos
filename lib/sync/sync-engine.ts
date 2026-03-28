@@ -1,13 +1,9 @@
 import { parseMermaidToFlow } from "./mermaid-to-flow";
-import { flowToMermaid } from "./flow-to-mermaid";
 import { useDiagramStore } from "../store";
 
-let syncTimeout: ReturnType<typeof setTimeout> | null = null;
-const DEBOUNCE_MS = 1500;
-
 /**
- * Trigger sync from code → canvas.
- * This is the deterministic direction (no LLM needed).
+ * Manual sync: Code → Canvas
+ * Deterministic parser, no LLM needed.
  */
 export async function syncCodeToCanvas() {
   const { mermaidCode, setSyncStatus, setNodes, setEdges, pushHistory } =
@@ -27,44 +23,79 @@ export async function syncCodeToCanvas() {
 }
 
 /**
- * Trigger sync from canvas → code.
- * Uses LLM or deterministic fallback.
+ * Manual sync: Canvas → Code
+ * Uses LLM via /api/sync with deterministic fallback.
  */
 export async function syncCanvasToCode() {
-  const { nodes, edges, setSyncStatus, setMermaidCode, pushHistory } =
+  const { nodes, edges, setSyncStatus, pushHistory } =
     useDiagramStore.getState();
+
+  if (nodes.length === 0) {
+    useDiagramStore.setState({ mermaidCode: "graph TD\n    A[Start]", syncStatus: "synced" });
+    return;
+  }
 
   setSyncStatus("syncing");
   try {
-    const code = await flowToMermaid(nodes, edges);
-    pushHistory();
-    // Set code without triggering activePane change to "code"
-    useDiagramStore.setState({ mermaidCode: code, syncStatus: "synced" });
+    const res = await fetch("/api/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nodes: nodes.map((n) => ({
+          id: n.id,
+          label: (n.data as any)?.label || n.id,
+          position: n.position,
+          shape: (n.data as any)?.shape || "rect",
+        })),
+        edges: edges.map((e) => ({
+          source: e.source,
+          target: e.target,
+          label: e.label || "",
+          animated: e.animated || false,
+        })),
+      }),
+    });
+
+    if (!res.ok) throw new Error("Sync API failed");
+
+    const data = await res.json();
+    if (data.mermaidCode) {
+      pushHistory();
+      useDiagramStore.setState({
+        mermaidCode: data.mermaidCode,
+        syncStatus: "synced",
+      });
+    }
   } catch (err) {
     console.error("Canvas → Code sync failed:", err);
-    setSyncStatus("error");
+    // Deterministic client-side fallback
+    const code = clientFallbackSync(nodes, edges);
+    pushHistory();
+    useDiagramStore.setState({ mermaidCode: code, syncStatus: "synced" });
   }
 }
 
-/**
- * Debounced sync from canvas changes.
- */
-export function debouncedCanvasSync() {
-  if (syncTimeout) clearTimeout(syncTimeout);
-  useDiagramStore.setState({ syncStatus: "diverged" });
-  syncTimeout = setTimeout(() => {
-    syncCanvasToCode();
-  }, DEBOUNCE_MS);
+/** Client-side deterministic fallback */
+function clientFallbackSync(nodes: any[], edges: any[]): string {
+  const lines: string[] = ["graph TD"];
+  for (const n of nodes) {
+    const id = sanitizeId(n.id);
+    const label = (n.data as any)?.label || n.id;
+    lines.push(`    ${id}[${label}]`);
+  }
+  for (const e of edges) {
+    const src = sanitizeId(e.source);
+    const tgt = sanitizeId(e.target);
+    const label = e.label || "";
+    if (label) {
+      lines.push(`    ${src} -->|${label}| ${tgt}`);
+    } else {
+      lines.push(`    ${src} --> ${tgt}`);
+    }
+  }
+  return lines.join("\n");
 }
 
-/**
- * Debounced sync from code changes.
- */
-let codeTimeout: ReturnType<typeof setTimeout> | null = null;
-export function debouncedCodeSync() {
-  if (codeTimeout) clearTimeout(codeTimeout);
-  useDiagramStore.setState({ syncStatus: "diverged" });
-  codeTimeout = setTimeout(() => {
-    syncCodeToCanvas();
-  }, DEBOUNCE_MS);
+function sanitizeId(id: string): string {
+  return id.replace(/[^a-zA-Z0-9_-]/g, "_");
 }

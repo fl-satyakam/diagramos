@@ -3,7 +3,6 @@
 import { useRef, useCallback, useEffect } from "react";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import { useDiagramStore } from "@/lib/store";
-import { debouncedCodeSync } from "@/lib/sync/sync-engine";
 
 export default function CodeEditor() {
   const mermaidCode = useDiagramStore((s) => s.mermaidCode);
@@ -61,7 +60,6 @@ export default function CodeEditor() {
       ],
     });
 
-    // Register completions
     monaco.languages.registerCompletionItemProvider("mermaid", {
       provideCompletionItems: (model: any, position: any) => {
         const word = model.getWordUntilPosition(position);
@@ -90,14 +88,19 @@ export default function CodeEditor() {
     (value: string | undefined) => {
       if (isInternalUpdate.current) return;
       if (value !== undefined) {
-        setMermaidCode(value);
-        debouncedCodeSync();
+        // Just update the store — no auto-sync
+        // User will manually click sync to push to canvas
+        useDiagramStore.setState({
+          mermaidCode: value,
+          activePane: "code",
+          syncStatus: "diverged",
+        });
       }
     },
-    [setMermaidCode]
+    []
   );
 
-  // Update editor when code changes externally (e.g., from canvas sync)
+  // Update editor when code changes externally (e.g., from AI chat)
   useEffect(() => {
     if (editorRef.current) {
       const currentValue = editorRef.current.getValue();

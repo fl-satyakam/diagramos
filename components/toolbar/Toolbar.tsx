@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { useDiagramStore } from "@/lib/store";
-import { syncCodeToCanvas } from "@/lib/sync/sync-engine";
+import { syncCodeToCanvas, syncCanvasToCode } from "@/lib/sync/sync-engine";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,7 +16,6 @@ import {
   Redo2,
   Download,
   Sparkles,
-  RefreshCw,
   PanelLeft,
   Check,
   Loader2,
@@ -25,6 +25,9 @@ import {
   FileText,
   Copy,
   Plus,
+  ArrowRightToLine,
+  ArrowLeftToLine,
+  Save,
 } from "lucide-react";
 import { toPng, toSvg } from "html-to-image";
 
@@ -40,17 +43,34 @@ export default function Toolbar() {
   const addNode = useDiagramStore((s) => s.addNode);
   const activeDiagramId = useDiagramStore((s) => s.activeDiagramId);
   const diagrams = useDiagramStore((s) => s.diagrams);
+  const saveDiagram = useDiagramStore((s) => s.saveDiagram);
+
+  const [syncing, setSyncing] = useState<"code" | "canvas" | null>(null);
 
   const activeDiagram = diagrams.find((d) => d.id === activeDiagramId);
+
+  const handleSyncCodeToCanvas = async () => {
+    setSyncing("canvas");
+    await syncCodeToCanvas();
+    setSyncing(null);
+  };
+
+  const handleSyncCanvasToCode = async () => {
+    setSyncing("code");
+    await syncCanvasToCode();
+    setSyncing(null);
+  };
+
+  const handleSave = () => {
+    saveDiagram();
+    useDiagramStore.setState({ syncStatus: "synced" });
+  };
 
   const handleExportPng = async () => {
     const el = document.querySelector(".react-flow") as HTMLElement;
     if (!el) return;
     try {
-      const url = await toPng(el, {
-        backgroundColor: "#09090b",
-        pixelRatio: 2,
-      });
+      const url = await toPng(el, { backgroundColor: "#09090b", pixelRatio: 2 });
       const a = document.createElement("a");
       a.href = url;
       a.download = `${activeDiagram?.name || "diagram"}.png`;
@@ -90,18 +110,11 @@ export default function Toolbar() {
     } catch {}
   };
 
-  const syncIcon = {
-    synced: <Check className="h-3 w-3 text-zinc-500" />,
+  const syncStatusIcon = {
+    synced: <Check className="h-3 w-3 text-emerald-500" />,
     syncing: <Loader2 className="h-3 w-3 text-zinc-500 animate-spin" />,
-    diverged: <RefreshCw className="h-3 w-3 text-amber-500" />,
+    diverged: <div className="h-2 w-2 rounded-full bg-amber-500" />,
     error: <AlertCircle className="h-3 w-3 text-red-500" />,
-  };
-
-  const syncLabel = {
-    synced: "Synced",
-    syncing: "Syncing...",
-    diverged: "Diverged",
-    error: "Sync error",
   };
 
   return (
@@ -123,9 +136,13 @@ export default function Toolbar() {
         <span className="text-xs text-zinc-300 font-medium truncate max-w-[200px]">
           {activeDiagram?.name || "Untitled"}
         </span>
+
+        <div className="ml-2">
+          {syncStatusIcon[syncStatus]}
+        </div>
       </div>
 
-      {/* Center */}
+      {/* Center — Sync Controls */}
       <div className="flex items-center gap-1">
         <Button
           variant="ghost"
@@ -148,7 +165,6 @@ export default function Toolbar() {
         >
           <Undo2 className="h-3.5 w-3.5" />
         </Button>
-
         <Button
           variant="ghost"
           size="icon"
@@ -161,13 +177,46 @@ export default function Toolbar() {
 
         <div className="h-4 w-px bg-zinc-800 mx-1" />
 
+        {/* Sync: Code → Canvas */}
         <button
-          onClick={syncCodeToCanvas}
-          className="flex items-center gap-1.5 px-2 py-1 rounded text-[11px] text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors"
-          title="Click to force sync from code"
+          onClick={handleSyncCodeToCanvas}
+          disabled={syncing !== null}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 disabled:opacity-40 transition-colors"
+          title="Sync code → canvas"
         >
-          {syncIcon[syncStatus]}
-          <span>{syncLabel[syncStatus]}</span>
+          {syncing === "canvas" ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <ArrowRightToLine className="h-3 w-3" />
+          )}
+          <span>Code → Canvas</span>
+        </button>
+
+        {/* Sync: Canvas → Code */}
+        <button
+          onClick={handleSyncCanvasToCode}
+          disabled={syncing !== null}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 disabled:opacity-40 transition-colors"
+          title="Sync canvas → code"
+        >
+          {syncing === "code" ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <ArrowLeftToLine className="h-3 w-3" />
+          )}
+          <span>Canvas → Code</span>
+        </button>
+
+        <div className="h-4 w-px bg-zinc-800 mx-1" />
+
+        {/* Save */}
+        <button
+          onClick={handleSave}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 transition-colors"
+          title="Save (⌘S)"
+        >
+          <Save className="h-3 w-3" />
+          <span>Save</span>
         </button>
       </div>
 

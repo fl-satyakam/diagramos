@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useEffect } from "react";
+import { useCallback } from "react";
 import {
   ReactFlow,
   MiniMap,
@@ -16,7 +16,6 @@ import "@xyflow/react/dist/style.css";
 import CustomNode from "./CustomNode";
 import CustomEdge from "./CustomEdge";
 import { useDiagramStore } from "@/lib/store";
-import { debouncedCanvasSync } from "@/lib/sync/sync-engine";
 
 const nodeTypes: NodeTypes = {
   custom: CustomNode,
@@ -34,32 +33,12 @@ export default function DiagramCanvas() {
   const onConnect = useDiagramStore((s) => s.onConnect);
   const deleteSelected = useDiagramStore((s) => s.deleteSelected);
 
-  const prevNodesRef = useRef(nodes);
-  const prevEdgesRef = useRef(edges);
-
-  // Detect meaningful canvas changes and trigger sync
-  useEffect(() => {
-    const nodesChanged =
-      JSON.stringify(nodes.map((n) => ({ id: n.id, pos: n.position, data: n.data }))) !==
-      JSON.stringify(prevNodesRef.current.map((n) => ({ id: n.id, pos: n.position, data: n.data })));
-    const edgesChanged =
-      JSON.stringify(edges.map((e) => ({ s: e.source, t: e.target, l: e.label }))) !==
-      JSON.stringify(prevEdgesRef.current.map((e) => ({ s: e.source, t: e.target, l: e.label })));
-
-    if (nodesChanged || edgesChanged) {
-      const activePane = useDiagramStore.getState().activePane;
-      if (activePane === "canvas") {
-        debouncedCanvasSync();
-      }
-    }
-
-    prevNodesRef.current = nodes;
-    prevEdgesRef.current = edges;
-  }, [nodes, edges]);
-
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Delete" || e.key === "Backspace") {
+        // Only delete if not editing a text input
+        const target = e.target as HTMLElement;
+        if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
         deleteSelected();
       }
     },
