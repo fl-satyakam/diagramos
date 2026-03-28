@@ -66,6 +66,9 @@ export default function DiagramCanvas() {
           maxZoom={4}
           snapToGrid
           snapGrid={[16, 16]}
+          edgesFocusable
+          edgesReconnectable
+          elementsSelectable
         >
           <Background
             variant={BackgroundVariant.Dots}

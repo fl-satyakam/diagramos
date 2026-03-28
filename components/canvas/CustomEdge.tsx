@@ -41,7 +41,6 @@ const CustomEdge: FC<EdgeProps> = ({
     targetPosition,
   });
 
-  // Focus input when editing starts
   useEffect(() => {
     if (editing && inputRef.current) {
       inputRef.current.focus();
@@ -49,14 +48,10 @@ const CustomEdge: FC<EdgeProps> = ({
     }
   }, [editing]);
 
-  const startEditing = useCallback(
-    (e?: React.MouseEvent) => {
-      if (e) e.stopPropagation();
-      setEditing(true);
-      setEditLabel(String(label || ""));
-    },
-    [label]
-  );
+  const startEditing = useCallback(() => {
+    setEditing(true);
+    setEditLabel(String(label || ""));
+  }, [label]);
 
   const commitLabel = useCallback(() => {
     setEditing(false);
@@ -65,9 +60,8 @@ const CustomEdge: FC<EdgeProps> = ({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === "Enter") {
-        commitLabel();
-      }
+      e.stopPropagation();
+      if (e.key === "Enter") commitLabel();
       if (e.key === "Escape") {
         setEditing(false);
         setEditLabel(String(label || ""));
@@ -88,15 +82,6 @@ const CustomEdge: FC<EdgeProps> = ({
 
   return (
     <>
-      {/* Invisible fat path for easier clicking */}
-      <path
-        d={edgePath}
-        fill="none"
-        stroke="transparent"
-        strokeWidth={20}
-        className="cursor-pointer"
-        onDoubleClick={() => startEditing()}
-      />
       <BaseEdge
         id={id}
         path={edgePath}
@@ -108,12 +93,20 @@ const CustomEdge: FC<EdgeProps> = ({
         }}
         markerEnd="url(#arrow)"
       />
+      {/* 
+        EdgeLabelRenderer renders in an HTML overlay above the SVG canvas.
+        This is the ONLY reliable way to get click/input events on edges.
+        The "+" button and label are rendered here with pointer-events enabled.
+      */}
       <EdgeLabelRenderer>
         <div
-          className="absolute pointer-events-all nodrag nopan"
           style={{
-            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+            position: "absolute",
+            transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            pointerEvents: "all",
+            zIndex: 10,
           }}
+          className="nodrag nopan"
         >
           {editing ? (
             <input
@@ -122,14 +115,22 @@ const CustomEdge: FC<EdgeProps> = ({
               onChange={(e) => setEditLabel(e.target.value)}
               onBlur={commitLabel}
               onKeyDown={handleKeyDown}
-              className="px-2.5 py-1 text-xs rounded-full bg-white border-2 border-blue-500 text-gray-800 outline-none shadow-md min-w-[80px] text-center font-medium"
-              placeholder="Label..."
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{ pointerEvents: "all" }}
+              className="px-3 py-1 text-xs rounded-full bg-white border-2 border-blue-500 text-gray-800 outline-none shadow-lg min-w-[100px] text-center font-medium"
+              placeholder="Type label..."
             />
           ) : label ? (
             <div
-              onDoubleClick={startEditing}
+              onClick={(e) => {
+                e.stopPropagation();
+                startEditing();
+              }}
+              onDoubleClick={(e) => e.stopPropagation()}
+              style={{ pointerEvents: "all", cursor: "pointer" }}
               className={`
-                text-[11px] px-2.5 py-0.5 rounded-full cursor-pointer font-medium
+                text-[11px] px-3 py-1 rounded-full font-medium select-none
                 bg-white text-gray-600 border shadow-sm
                 ${selected ? "border-blue-400 text-gray-800" : "border-gray-200"}
                 hover:border-blue-300 hover:shadow-md transition-all
@@ -138,19 +139,25 @@ const CustomEdge: FC<EdgeProps> = ({
               {label}
             </div>
           ) : (
-            /* Always-visible "add label" button at edge midpoint */
             <button
-              onClick={() => startEditing()}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                startEditing();
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{ pointerEvents: "all" }}
               className={`
-                text-[10px] w-6 h-6 rounded-full cursor-pointer font-bold
+                w-7 h-7 rounded-full font-bold text-sm
                 flex items-center justify-center
-                transition-all duration-150
+                transition-all duration-150 cursor-pointer
                 ${selected
-                  ? "bg-blue-50 text-blue-500 border-2 border-blue-300 shadow-sm"
-                  : "bg-white text-gray-300 border border-gray-200 shadow-sm hover:text-gray-500 hover:border-gray-300 hover:shadow-md"
+                  ? "bg-blue-100 text-blue-600 border-2 border-blue-400 shadow-sm"
+                  : "bg-white text-gray-400 border-2 border-gray-200 shadow-sm hover:text-blue-500 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md"
                 }
               `}
               title="Click to add label"
+              type="button"
             >
               +
             </button>
