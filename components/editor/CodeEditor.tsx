@@ -88,8 +88,6 @@ export default function CodeEditor() {
     (value: string | undefined) => {
       if (isInternalUpdate.current) return;
       if (value !== undefined) {
-        // Just update the store — no auto-sync
-        // User will manually click sync to push to canvas
         useDiagramStore.setState({
           mermaidCode: value,
           activePane: "code",
@@ -113,12 +111,12 @@ export default function CodeEditor() {
   }, [mermaidCode]);
 
   return (
-    <div className="h-full w-full flex flex-col bg-zinc-950">
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-zinc-800 bg-zinc-950">
-        <span className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
+    <div className="h-full w-full flex flex-col bg-white">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-200 bg-white">
+        <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">
           Mermaid
         </span>
-        <span className="text-[10px] text-zinc-600 font-mono">.mmd</span>
+        <span className="text-[10px] text-gray-400 font-mono">.mmd</span>
       </div>
       <div className="flex-1">
         <Editor
@@ -126,7 +124,7 @@ export default function CodeEditor() {
           value={mermaidCode}
           onChange={handleChange}
           onMount={handleMount}
-          theme="vs-dark"
+          theme="light"
           options={{
             fontSize: 13,
             fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",

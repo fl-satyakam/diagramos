@@ -15,10 +15,12 @@ import "@xyflow/react/dist/style.css";
 
 import CustomNode from "./CustomNode";
 import CustomEdge from "./CustomEdge";
+import CommentNode from "./CommentNode";
 import { useDiagramStore } from "@/lib/store";
 
 const nodeTypes: NodeTypes = {
   custom: CustomNode,
+  comment: CommentNode,
 };
 
 const edgeTypes: EdgeTypes = {
@@ -36,7 +38,6 @@ export default function DiagramCanvas() {
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Delete" || e.key === "Backspace") {
-        // Only delete if not editing a text input
         const target = e.target as HTMLElement;
         if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
         deleteSelected();
@@ -60,7 +61,7 @@ export default function DiagramCanvas() {
           fitViewOptions={{ padding: 0.3 }}
           defaultEdgeOptions={{ type: "custom" }}
           proOptions={{ hideAttribution: true }}
-          className="bg-zinc-950"
+          className="bg-gray-50"
           minZoom={0.1}
           maxZoom={4}
           snapToGrid
@@ -70,18 +71,16 @@ export default function DiagramCanvas() {
             variant={BackgroundVariant.Dots}
             gap={20}
             size={1}
-            color="#27272a"
+            color="#e5e7eb"
           />
           <MiniMap
-            className="!bg-zinc-900 !border-zinc-800"
-            nodeColor="#3f3f46"
-            maskColor="rgba(0,0,0,0.7)"
+            className="!bg-white !border-gray-200 !rounded-lg"
+            nodeColor="#D1D5DB"
+            maskColor="rgba(255,255,255,0.7)"
             pannable
             zoomable
           />
-          <Controls
-            className="!bg-zinc-900 !border-zinc-800 !shadow-none [&>button]:!bg-zinc-900 [&>button]:!border-zinc-700 [&>button]:!text-zinc-400 [&>button:hover]:!bg-zinc-800"
-          />
+          <Controls className="!bg-white !border-gray-200 !shadow-sm !rounded-lg" />
           <svg>
             <defs>
               <marker
@@ -93,7 +92,7 @@ export default function DiagramCanvas() {
                 markerHeight="6"
                 orient="auto-start-reverse"
               >
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#52525b" />
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#9CA3AF" />
               </marker>
             </defs>
           </svg>

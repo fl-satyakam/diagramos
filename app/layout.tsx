@@ -1,5 +1,13 @@
 import type { Metadata } from "next";
+import { Montserrat } from "next/font/google";
 import "./globals.css";
+
+const montserrat = Montserrat({
+  subsets: ["latin"],
+  variable: "--font-montserrat",
+  display: "swap",
+  weight: ["300", "400", "500", "600", "700"],
+});
 
 export const metadata: Metadata = {
   title: "DiagramOS — Mermaid Diagrams, Alive",
@@ -13,8 +21,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="bg-zinc-950 text-zinc-100 antialiased">{children}</body>
+    <html lang="en" className={montserrat.variable}>
+      <body className="bg-white text-gray-900 antialiased font-sans">
+        {children}
+      </body>
     </html>
   );
 }

@@ -30,6 +30,20 @@ interface ChatMessage {
   timestamp: number;
 }
 
+export interface NodeStyleData {
+  color?: string;
+  borderStyle?: string;
+  fontSize?: string;
+  shape?: string;
+  label?: string;
+}
+
+export interface EdgeStyleData {
+  strokeStyle?: string;
+  strokeColor?: string;
+  strokeWidth?: number;
+}
+
 interface DiagramStore {
   // Diagrams
   diagrams: Diagram[];
@@ -92,6 +106,19 @@ interface DiagramStore {
   deleteSelected: () => void;
   // Add node
   addNode: (label: string, position?: { x: number; y: number }) => void;
+
+  // New: Comment node
+  addCommentNode: (text?: string, position?: { x: number; y: number }) => void;
+
+  // New: Style updates
+  updateNodeStyle: (
+    nodeId: string,
+    style: Partial<{ color: string; borderStyle: string; fontSize: string }>
+  ) => void;
+  updateEdgeStyle: (
+    edgeId: string,
+    style: Partial<{ strokeStyle: string; strokeColor: string; strokeWidth: number }>
+  ) => void;
 }
 
 const DEFAULT_MERMAID = `graph TD
@@ -257,7 +284,6 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
   setActiveDiagram: (id) => {
     const diagram = get().diagrams.find((d) => d.id === id);
     if (!diagram) return;
-    // Save current diagram first
     get().saveDiagram();
     set({
       activeDiagramId: id,
@@ -301,7 +327,6 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
         }
       }
     } catch {}
-    // Create default diagram
     get().createDiagram("Untitled Diagram", "flowchart");
   },
 
@@ -324,7 +349,6 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
       edges: JSON.parse(JSON.stringify(edges)),
       mermaidCode,
     });
-    // Keep max 50 entries
     if (newHistory.length > 50) newHistory.shift();
     set({ history: newHistory, historyIndex: newHistory.length - 1 });
   },
@@ -395,4 +419,47 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
       activePane: "canvas",
     }));
   },
+
+  addCommentNode: (text, position) => {
+    const id = `comment-${generateId()}`;
+    const pos = position || {
+      x: 300 + Math.random() * 150,
+      y: 200 + Math.random() * 150,
+    };
+    set((state) => ({
+      nodes: [
+        ...state.nodes,
+        {
+          id,
+          type: "comment",
+          position: pos,
+          data: { label: text || "Add a comment..." },
+        },
+      ],
+      activePane: "canvas",
+    }));
+  },
+
+  updateNodeStyle: (nodeId, style) =>
+    set((state) => ({
+      nodes: state.nodes.map((n) =>
+        n.id === nodeId
+          ? { ...n, data: { ...n.data, ...style } }
+          : n
+      ),
+      activePane: "canvas",
+    })),
+
+  updateEdgeStyle: (edgeId, style) =>
+    set((state) => ({
+      edges: state.edges.map((e) =>
+        e.id === edgeId
+          ? {
+              ...e,
+              data: { ...(e.data || {}), ...style },
+            }
+          : e
+      ),
+      activePane: "canvas",
+    })),
 }));

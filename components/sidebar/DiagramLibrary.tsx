@@ -59,17 +59,17 @@ export default function DiagramLibrary() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950 border-r border-zinc-800 w-[240px]">
+    <div className="h-full flex flex-col bg-white border-r border-gray-200 w-[240px]">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-zinc-800">
-        <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-200">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
           Diagrams
         </span>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-zinc-500 hover:text-zinc-300"
+            className="h-6 w-6 text-gray-400 hover:text-gray-700 hover:bg-gray-100"
             onClick={() => setShowTemplates(!showTemplates)}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -77,7 +77,7 @@ export default function DiagramLibrary() {
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-zinc-500 hover:text-zinc-300"
+            className="h-6 w-6 text-gray-400 hover:text-gray-700 hover:bg-gray-100"
             onClick={toggleSidebar}
           >
             <ChevronLeft className="h-3.5 w-3.5" />
@@ -87,7 +87,7 @@ export default function DiagramLibrary() {
 
       {/* Template picker */}
       {showTemplates && (
-        <div className="px-2 py-2 border-b border-zinc-800 space-y-1">
+        <div className="px-2 py-2 border-b border-gray-200 space-y-1">
           {["flowchart", "sequence", "class", "state", "er", "blank"].map(
             (t) => {
               const Icon = templateIcons[t] || FileText;
@@ -95,9 +95,9 @@ export default function DiagramLibrary() {
                 <button
                   key={t}
                   onClick={() => handleCreate(t)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 rounded transition-colors"
+                  className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors"
                 >
-                  <Icon className="h-3.5 w-3.5 text-zinc-500" />
+                  <Icon className="h-3.5 w-3.5 text-gray-400" />
                   <span className="capitalize">{t}</span>
                 </button>
               );
@@ -109,12 +109,12 @@ export default function DiagramLibrary() {
       {/* Search */}
       <div className="px-2 py-2">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-zinc-600" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search..."
-            className="h-7 pl-7 text-xs bg-zinc-900 border-zinc-800 text-zinc-300 placeholder:text-zinc-600"
+            className="h-7 pl-7 text-xs bg-gray-50 border-gray-200 text-gray-700 placeholder:text-gray-400"
           />
         </div>
       </div>
@@ -126,12 +126,12 @@ export default function DiagramLibrary() {
             <div
               key={d.id}
               className={`
-                group flex items-center justify-between px-2 py-1.5 rounded cursor-pointer
+                group flex items-center justify-between px-2 py-1.5 rounded-md cursor-pointer
                 transition-colors text-xs
                 ${
                   d.id === activeDiagramId
-                    ? "bg-zinc-800/80 text-zinc-100"
-                    : "text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-300"
+                    ? "bg-blue-50 text-blue-700 font-medium"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-800"
                 }
               `}
               onClick={() => setActiveDiagram(d.id)}
@@ -150,19 +150,21 @@ export default function DiagramLibrary() {
                     if (e.key === "Escape") setEditingId(null);
                   }}
                   autoFocus
-                  className="bg-transparent flex-1 outline-none text-zinc-100"
+                  className="bg-transparent flex-1 outline-none text-gray-900"
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
                 <>
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <FileText className="h-3 w-3 flex-shrink-0 text-zinc-500" />
+                    <FileText className={`h-3 w-3 flex-shrink-0 ${
+                      d.id === activeDiagramId ? "text-blue-500" : "text-gray-400"
+                    }`} />
                     <span className="truncate">{d.name}</span>
                   </div>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-5 w-5 opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-400"
+                    className="h-5 w-5 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 hover:bg-red-50"
                     onClick={(e) => {
                       e.stopPropagation();
                       deleteDiagram(d.id);
@@ -178,8 +180,8 @@ export default function DiagramLibrary() {
       </ScrollArea>
 
       {/* Footer */}
-      <div className="px-3 py-2 border-t border-zinc-800">
-        <span className="text-[10px] text-zinc-600">
+      <div className="px-3 py-2 border-t border-gray-200">
+        <span className="text-[10px] text-gray-400">
           {diagrams.length} diagram{diagrams.length !== 1 ? "s" : ""}
         </span>
       </div>

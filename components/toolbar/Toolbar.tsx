@@ -28,6 +28,7 @@ import {
   ArrowRightToLine,
   ArrowLeftToLine,
   Save,
+  MessageSquare,
 } from "lucide-react";
 import { toPng, toSvg } from "html-to-image";
 
@@ -41,11 +42,13 @@ export default function Toolbar() {
   const chatOpen = useDiagramStore((s) => s.chatOpen);
   const mermaidCode = useDiagramStore((s) => s.mermaidCode);
   const addNode = useDiagramStore((s) => s.addNode);
+  const addCommentNode = useDiagramStore((s) => s.addCommentNode);
   const activeDiagramId = useDiagramStore((s) => s.activeDiagramId);
   const diagrams = useDiagramStore((s) => s.diagrams);
   const saveDiagram = useDiagramStore((s) => s.saveDiagram);
 
   const [syncing, setSyncing] = useState<"code" | "canvas" | null>(null);
+  const [saveAnimating, setSaveAnimating] = useState(false);
 
   const activeDiagram = diagrams.find((d) => d.id === activeDiagramId);
 
@@ -64,13 +67,15 @@ export default function Toolbar() {
   const handleSave = () => {
     saveDiagram();
     useDiagramStore.setState({ syncStatus: "synced" });
+    setSaveAnimating(true);
+    setTimeout(() => setSaveAnimating(false), 1500);
   };
 
   const handleExportPng = async () => {
     const el = document.querySelector(".react-flow") as HTMLElement;
     if (!el) return;
     try {
-      const url = await toPng(el, { backgroundColor: "#09090b", pixelRatio: 2 });
+      const url = await toPng(el, { backgroundColor: "#fafafa", pixelRatio: 2 });
       const a = document.createElement("a");
       a.href = url;
       a.download = `${activeDiagram?.name || "diagram"}.png`;
@@ -84,7 +89,7 @@ export default function Toolbar() {
     const el = document.querySelector(".react-flow") as HTMLElement;
     if (!el) return;
     try {
-      const url = await toSvg(el, { backgroundColor: "#09090b" });
+      const url = await toSvg(el, { backgroundColor: "#fafafa" });
       const a = document.createElement("a");
       a.href = url;
       a.download = `${activeDiagram?.name || "diagram"}.svg`;
@@ -110,56 +115,114 @@ export default function Toolbar() {
     } catch {}
   };
 
-  const syncStatusIcon = {
-    synced: <Check className="h-3 w-3 text-emerald-500" />,
-    syncing: <Loader2 className="h-3 w-3 text-zinc-500 animate-spin" />,
-    diverged: <div className="h-2 w-2 rounded-full bg-amber-500" />,
-    error: <AlertCircle className="h-3 w-3 text-red-500" />,
+  // Smart save button renderer
+  const renderSaveButton = () => {
+    if (syncStatus === "syncing" || syncing !== null) {
+      return (
+        <button
+          disabled
+          className="flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-semibold
+            bg-gray-100 text-gray-400 cursor-not-allowed"
+        >
+          <Loader2 className="h-3 w-3 animate-spin" />
+          <span>Saving...</span>
+        </button>
+      );
+    }
+
+    if (syncStatus === "diverged") {
+      return (
+        <button
+          onClick={handleSave}
+          className="flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-semibold
+            bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-sm"
+          title="Save (⌘S)"
+        >
+          <Save className="h-3 w-3" />
+          <span>Save</span>
+        </button>
+      );
+    }
+
+    if (syncStatus === "error") {
+      return (
+        <button
+          onClick={handleSave}
+          className="flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-semibold
+            bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+          title="Retry save"
+        >
+          <AlertCircle className="h-3 w-3" />
+          <span>Error</span>
+        </button>
+      );
+    }
+
+    // Synced
+    return (
+      <div
+        className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-semibold
+          bg-emerald-50 text-emerald-600 transition-all ${saveAnimating ? "scale-105" : ""}`}
+      >
+        <Check className="h-3 w-3" />
+        <span>Synced</span>
+      </div>
+    );
   };
 
   return (
-    <div className="flex items-center justify-between h-10 px-3 border-b border-zinc-800 bg-zinc-950">
+    <div className="flex items-center justify-between h-11 px-3 border-b border-gray-200 bg-white">
       {/* Left */}
       <div className="flex items-center gap-1">
         <Button
           variant="ghost"
           size="icon"
-          className={`h-7 w-7 ${sidebarOpen ? "text-zinc-300" : "text-zinc-500"} hover:text-zinc-300`}
+          className={`h-7 w-7 ${sidebarOpen ? "text-gray-700" : "text-gray-400"} hover:text-gray-700 hover:bg-gray-100`}
           onClick={toggleSidebar}
           title="Toggle sidebar (⌘B)"
         >
           <PanelLeft className="h-3.5 w-3.5" />
         </Button>
 
-        <div className="h-4 w-px bg-zinc-800 mx-1" />
+        <div className="h-4 w-px bg-gray-200 mx-1" />
 
-        <span className="text-xs text-zinc-300 font-medium truncate max-w-[200px]">
+        <span className="text-xs text-gray-800 font-semibold truncate max-w-[200px]">
           {activeDiagram?.name || "Untitled"}
         </span>
 
         <div className="ml-2">
-          {syncStatusIcon[syncStatus]}
+          {renderSaveButton()}
         </div>
       </div>
 
-      {/* Center — Sync Controls */}
+      {/* Center — Actions */}
       <div className="flex items-center gap-1">
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 text-zinc-500 hover:text-zinc-300"
+          className="h-7 w-7 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
           onClick={() => addNode("New Node")}
           title="Add node"
         >
           <Plus className="h-3.5 w-3.5" />
         </Button>
 
-        <div className="h-4 w-px bg-zinc-800 mx-1" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+          onClick={() => addCommentNode()}
+          title="Add comment"
+        >
+          <MessageSquare className="h-3.5 w-3.5" />
+        </Button>
+
+        <div className="h-4 w-px bg-gray-200 mx-1" />
 
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 text-zinc-500 hover:text-zinc-300"
+          className="h-7 w-7 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
           onClick={undo}
           title="Undo (⌘Z)"
         >
@@ -168,20 +231,21 @@ export default function Toolbar() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 text-zinc-500 hover:text-zinc-300"
+          className="h-7 w-7 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
           onClick={redo}
           title="Redo (⌘⇧Z)"
         >
           <Redo2 className="h-3.5 w-3.5" />
         </Button>
 
-        <div className="h-4 w-px bg-zinc-800 mx-1" />
+        <div className="h-4 w-px bg-gray-200 mx-1" />
 
         {/* Sync: Code → Canvas */}
         <button
           onClick={handleSyncCodeToCanvas}
           disabled={syncing !== null}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 disabled:opacity-40 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium
+            text-gray-500 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-40 transition-colors"
           title="Sync code → canvas"
         >
           {syncing === "canvas" ? (
@@ -196,7 +260,8 @@ export default function Toolbar() {
         <button
           onClick={handleSyncCanvasToCode}
           disabled={syncing !== null}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 disabled:opacity-40 transition-colors"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium
+            text-gray-500 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-40 transition-colors"
           title="Sync canvas → code"
         >
           {syncing === "code" ? (
@@ -206,31 +271,19 @@ export default function Toolbar() {
           )}
           <span>Canvas → Code</span>
         </button>
-
-        <div className="h-4 w-px bg-zinc-800 mx-1" />
-
-        {/* Save */}
-        <button
-          onClick={handleSave}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 transition-colors"
-          title="Save (⌘S)"
-        >
-          <Save className="h-3 w-3" />
-          <span>Save</span>
-        </button>
       </div>
 
       {/* Right */}
       <div className="flex items-center gap-1">
         <DropdownMenu>
           <DropdownMenuTrigger
-            className="inline-flex items-center justify-center h-7 w-7 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors"
+            className="inline-flex items-center justify-center h-7 w-7 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
           >
             <Download className="h-3.5 w-3.5" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="end"
-            className="bg-zinc-900 border-zinc-800 text-zinc-300"
+            className="bg-white border-gray-200 text-gray-700"
           >
             <DropdownMenuItem onClick={handleExportPng} className="text-xs gap-2">
               <Image className="h-3.5 w-3.5" />
@@ -240,7 +293,7 @@ export default function Toolbar() {
               <FileText className="h-3.5 w-3.5" />
               Export SVG
             </DropdownMenuItem>
-            <DropdownMenuSeparator className="bg-zinc-800" />
+            <DropdownMenuSeparator className="bg-gray-100" />
             <DropdownMenuItem onClick={handleExportMermaid} className="text-xs gap-2">
               <FileCode className="h-3.5 w-3.5" />
               Download .mmd
@@ -252,12 +305,12 @@ export default function Toolbar() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="h-4 w-px bg-zinc-800 mx-1" />
+        <div className="h-4 w-px bg-gray-200 mx-1" />
 
         <Button
           variant="ghost"
           size="icon"
-          className={`h-7 w-7 ${chatOpen ? "text-zinc-300 bg-zinc-800/50" : "text-zinc-500"} hover:text-zinc-300`}
+          className={`h-7 w-7 ${chatOpen ? "text-blue-600 bg-blue-50" : "text-gray-500"} hover:text-blue-600 hover:bg-blue-50`}
           onClick={toggleChat}
           title="AI Edit (⌘K)"
         >

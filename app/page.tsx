@@ -6,6 +6,7 @@ import { useDiagramStore } from "@/lib/store";
 import { syncCodeToCanvas } from "@/lib/sync/sync-engine";
 import DiagramLibrary from "@/components/sidebar/DiagramLibrary";
 import Toolbar from "@/components/toolbar/Toolbar";
+import FormatToolbar from "@/components/toolbar/FormatToolbar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const DiagramCanvas = dynamic(
@@ -86,20 +87,22 @@ export default function Home() {
 
   return (
     <TooltipProvider>
-      <div className="h-screen w-screen flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden">
+      <div className="h-screen w-screen flex flex-col bg-gray-50 text-gray-900 overflow-hidden">
         <Toolbar />
 
-        <div className="flex flex-1 min-h-0">
+        <div className="flex flex-1 min-h-0 relative">
           {/* Sidebar */}
           {sidebarOpen && <DiagramLibrary />}
 
           {/* Canvas */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 relative">
             <DiagramCanvas />
+            {/* Format Toolbar - floating over canvas */}
+            <FormatToolbar />
           </div>
 
           {/* Code Editor */}
-          <div className="w-[400px] border-l border-zinc-800 flex-shrink-0">
+          <div className="w-[400px] border-l border-gray-200 flex-shrink-0">
             <CodeEditor />
           </div>
 
