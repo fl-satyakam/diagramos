@@ -322,33 +322,59 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
         : d
     );
     set({ diagrams: updated });
+
+    // Build position map
+    const positions: Record<string, any> = {};
+    for (const n of nodes) {
+      positions[n.id] = {
+        x: n.position.x,
+        y: n.position.y,
+        ...((n.data as any)?.width ? { width: (n.data as any).width } : {}),
+        ...((n.data as any)?.height ? { height: (n.data as any).height } : {}),
+      };
+    }
+
+    // Save to server (DynamoDB) via API
+    const diagram = updated.find((d) => d.id === activeDiagramId);
+    if (diagram) {
+      fetch("/api/diagrams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: diagram.id,
+          name: diagram.name,
+          mermaidCode: diagram.mermaidCode,
+          nodes: diagram.nodes,
+          edges: diagram.edges,
+          positions,
+          tags: [],
+        }),
+      }).catch((err) => console.warn("Server save failed:", err));
+    }
+
+    // Also keep localStorage as offline fallback
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      // Also save position map for sync restoration
-      if (activeDiagramId) {
-        const posKey = "diagramos-positions";
-        const existing = JSON.parse(localStorage.getItem(posKey) || "{}");
-        const posMap: Record<string, any> = {};
-        for (const n of nodes) {
-          posMap[n.id] = {
-            x: n.position.x,
-            y: n.position.y,
-            ...((n.data as any)?.width ? { width: (n.data as any).width } : {}),
-            ...((n.data as any)?.height ? { height: (n.data as any).height } : {}),
-          };
-        }
-        existing[activeDiagramId] = posMap;
-        localStorage.setItem(posKey, JSON.stringify(existing));
-      }
     } catch {}
   },
 
   loadDiagrams: () => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const diagrams: Diagram[] = JSON.parse(raw);
-        if (diagrams.length > 0) {
+    // Try loading from server first, fall back to localStorage
+    fetch("/api/diagrams")
+      .then((res) => res.json())
+      .then((data) => {
+        const serverDiagrams = data.diagrams || [];
+        if (serverDiagrams.length > 0) {
+          // Convert server format to local format
+          const diagrams: Diagram[] = serverDiagrams.map((d: any) => ({
+            id: d.id,
+            name: d.name,
+            mermaidCode: d.mermaidCode || DEFAULT_MERMAID,
+            nodes: d.nodes || [],
+            edges: d.edges || [],
+            createdAt: d.createdAt ? new Date(d.createdAt).getTime() : Date.now(),
+            updatedAt: d.updatedAt ? new Date(d.updatedAt).getTime() : Date.now(),
+          }));
           set({
             diagrams,
             activeDiagramId: diagrams[0].id,
@@ -356,11 +382,39 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
             nodes: diagrams[0].nodes || [],
             edges: diagrams[0].edges || [],
           });
+          // Update localStorage as cache
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(diagrams));
+          } catch {}
           return;
         }
-      }
-    } catch {}
-    get().createDiagram("Untitled Diagram", "flowchart");
+        // No server diagrams — try localStorage
+        loadFromLocalStorage();
+      })
+      .catch(() => {
+        // Server unreachable — use localStorage
+        loadFromLocalStorage();
+      });
+
+    function loadFromLocalStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const diagrams: Diagram[] = JSON.parse(raw);
+          if (diagrams.length > 0) {
+            set({
+              diagrams,
+              activeDiagramId: diagrams[0].id,
+              mermaidCode: diagrams[0].mermaidCode,
+              nodes: diagrams[0].nodes || [],
+              edges: diagrams[0].edges || [],
+            });
+            return;
+          }
+        }
+      } catch {}
+      get().createDiagram("Untitled Diagram", "flowchart");
+    }
   },
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),

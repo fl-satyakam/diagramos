@@ -1,7 +1,20 @@
-import { promises as fs } from "fs";
-import path from "path";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import {
+  DynamoDBDocumentClient,
+  PutCommand,
+  GetCommand,
+  DeleteCommand,
+  ScanCommand,
+  QueryCommand,
+} from "@aws-sdk/lib-dynamodb";
 
-const DATA_DIR = path.join(process.cwd(), "data", "diagrams");
+const TABLE_NAME = process.env.DYNAMODB_TABLE || "diagramos-diagrams";
+const REGION = process.env.AWS_REGION || "us-east-1";
+
+const client = new DynamoDBClient({ region: REGION });
+const docClient = DynamoDBDocumentClient.from(client, {
+  marshallOptions: { removeUndefinedValues: true },
+});
 
 export interface StoredDiagram {
   id: string;
@@ -10,60 +23,69 @@ export interface StoredDiagram {
   createdAt: string;
   updatedAt: string;
   tags?: string[];
-}
-
-async function ensureDir() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-}
-
-function filePath(id: string) {
-  // Sanitize to prevent path traversal
-  const safe = id.replace(/[^a-zA-Z0-9_-]/g, "");
-  return path.join(DATA_DIR, `${safe}.json`);
+  // Canvas state — positions, dimensions, edges, node styles
+  nodes?: any[];
+  edges?: any[];
+  positions?: Record<string, { x: number; y: number; width?: number; height?: number }>;
 }
 
 export async function listDiagrams(): Promise<StoredDiagram[]> {
-  await ensureDir();
-  const files = await fs.readdir(DATA_DIR);
-  const diagrams: StoredDiagram[] = [];
-  for (const f of files) {
-    if (!f.endsWith(".json")) continue;
-    try {
-      const raw = await fs.readFile(path.join(DATA_DIR, f), "utf-8");
-      diagrams.push(JSON.parse(raw));
-    } catch {}
-  }
-  return diagrams.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const result = await docClient.send(
+    new ScanCommand({
+      TableName: TABLE_NAME,
+      ProjectionExpression: "id, #n, updatedAt, createdAt, tags",
+      ExpressionAttributeNames: { "#n": "name" },
+    })
+  );
+  const items = (result.Items || []) as StoredDiagram[];
+  return items.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
 }
 
 export async function getDiagram(id: string): Promise<StoredDiagram | null> {
-  try {
-    const raw = await fs.readFile(filePath(id), "utf-8");
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  const result = await docClient.send(
+    new GetCommand({ TableName: TABLE_NAME, Key: { id } })
+  );
+  return (result.Item as StoredDiagram) || null;
 }
 
 export async function getDiagramByName(name: string): Promise<StoredDiagram | null> {
+  // DynamoDB doesn't support case-insensitive queries natively
+  // Scan with filter — fine for our scale (< 10k diagrams)
+  const result = await docClient.send(
+    new ScanCommand({
+      TableName: TABLE_NAME,
+      FilterExpression: "#n = :name",
+      ExpressionAttributeNames: { "#n": "name" },
+      ExpressionAttributeValues: { ":name": name },
+    })
+  );
+  if (result.Items && result.Items.length > 0) {
+    return result.Items[0] as StoredDiagram;
+  }
+  // Try case-insensitive
   const all = await listDiagrams();
   const lower = name.toLowerCase();
-  return all.find((d) => d.name.toLowerCase() === lower) || null;
+  const match = all.find((d) => d.name.toLowerCase() === lower);
+  if (match) return getDiagram(match.id);
+  return null;
 }
 
 export async function saveDiagram(diagram: StoredDiagram): Promise<StoredDiagram> {
-  await ensureDir();
   diagram.updatedAt = new Date().toISOString();
   if (!diagram.createdAt) {
     diagram.createdAt = diagram.updatedAt;
   }
-  await fs.writeFile(filePath(diagram.id), JSON.stringify(diagram, null, 2));
+  await docClient.send(
+    new PutCommand({ TableName: TABLE_NAME, Item: diagram })
+  );
   return diagram;
 }
 
 export async function deleteDiagram(id: string): Promise<boolean> {
   try {
-    await fs.unlink(filePath(id));
+    await docClient.send(
+      new DeleteCommand({ TableName: TABLE_NAME, Key: { id } })
+    );
     return true;
   } catch {
     return false;

@@ -56,6 +56,18 @@ const TOOLS = [
           items: { type: "string" },
           description: "Optional tags for categorization",
         },
+        nodes: {
+          type: "array",
+          description: "Optional React Flow nodes array with positions",
+        },
+        edges: {
+          type: "array",
+          description: "Optional React Flow edges array",
+        },
+        positions: {
+          type: "object",
+          description: "Optional position map: { nodeId: { x, y, width?, height? } }",
+        },
       },
       required: ["name", "mermaidCode"],
     },
@@ -148,6 +160,9 @@ async function handleMethod(method: string, params: Record<string, any> = {}) {
             name: args.name,
             mermaidCode: args.mermaidCode,
             tags: args.tags || [],
+            nodes: args.nodes || [],
+            edges: args.edges || [],
+            positions: args.positions || {},
             createdAt: existing?.createdAt || new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           });

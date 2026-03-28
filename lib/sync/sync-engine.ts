@@ -24,11 +24,29 @@ function savePositionMap() {
   } catch {}
 }
 
-/** Load saved positions for a diagram */
+/** Load saved positions — from diagram's server-synced nodes or localStorage fallback */
 function loadPositionMap(): Record<string, { x: number; y: number; width?: number; height?: number }> | null {
-  const { activeDiagramId } = useDiagramStore.getState();
+  const { activeDiagramId, diagrams } = useDiagramStore.getState();
   if (!activeDiagramId) return null;
 
+  // Check if the current diagram already has nodes with positions (from DynamoDB)
+  const diagram = diagrams.find((d: any) => d.id === activeDiagramId);
+  if (diagram && diagram.nodes && diagram.nodes.length > 0) {
+    const posMap: Record<string, any> = {};
+    for (const n of diagram.nodes) {
+      if (n.position) {
+        posMap[n.id] = {
+          x: n.position.x,
+          y: n.position.y,
+          ...((n.data as any)?.width ? { width: (n.data as any).width } : {}),
+          ...((n.data as any)?.height ? { height: (n.data as any).height } : {}),
+        };
+      }
+    }
+    if (Object.keys(posMap).length > 0) return posMap;
+  }
+
+  // Fallback to localStorage
   try {
     const existing = JSON.parse(localStorage.getItem(POSITION_KEY) || "{}");
     return existing[activeDiagramId] || null;

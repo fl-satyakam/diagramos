@@ -10,31 +10,36 @@ import {
 
 // GET /api/diagrams — list all or get by id/name
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const id = url.searchParams.get("id");
-  const name = url.searchParams.get("name");
+  try {
+    const url = new URL(req.url);
+    const id = url.searchParams.get("id");
+    const name = url.searchParams.get("name");
 
-  if (id) {
-    const diagram = await getDiagram(id);
-    if (!diagram) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json(diagram);
+    if (id) {
+      const diagram = await getDiagram(id);
+      if (!diagram) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return NextResponse.json(diagram);
+    }
+
+    if (name) {
+      const diagram = await getDiagramByName(name);
+      if (!diagram) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return NextResponse.json(diagram);
+    }
+
+    const diagrams = await listDiagrams();
+    return NextResponse.json({ diagrams, count: diagrams.length });
+  } catch (err) {
+    console.error("GET /api/diagrams error:", err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
-
-  if (name) {
-    const diagram = await getDiagramByName(name);
-    if (!diagram) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json(diagram);
-  }
-
-  const diagrams = await listDiagrams();
-  return NextResponse.json({ diagrams, count: diagrams.length });
 }
 
 // POST /api/diagrams — create or update
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, mermaidCode, tags } = body;
+    const { name, mermaidCode, tags, nodes, edges, positions } = body;
 
     if (!name || !mermaidCode) {
       return NextResponse.json(
@@ -51,6 +56,9 @@ export async function POST(req: Request) {
       name,
       mermaidCode,
       tags: tags || [],
+      nodes: nodes || [],
+      edges: edges || [],
+      positions: positions || {},
       createdAt: existing?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -58,18 +66,24 @@ export async function POST(req: Request) {
     const saved = await saveDiagram(diagram);
     return NextResponse.json(saved, { status: existing ? 200 : 201 });
   } catch (err) {
+    console.error("POST /api/diagrams error:", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
 
 // DELETE /api/diagrams?id=xxx
 export async function DELETE(req: Request) {
-  const url = new URL(req.url);
-  const id = url.searchParams.get("id");
-  if (!id) {
-    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  try {
+    const url = new URL(req.url);
+    const id = url.searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ error: "id is required" }, { status: 400 });
+    }
+    const deleted = await deleteDiagram(id);
+    if (!deleted) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ deleted: true });
+  } catch (err) {
+    console.error("DELETE /api/diagrams error:", err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
-  const deleted = await deleteDiagram(id);
-  if (!deleted) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ deleted: true });
 }
