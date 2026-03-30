@@ -30,6 +30,7 @@ import {
   Save,
   MessageSquare,
   Home,
+  LayoutGrid,
 } from "lucide-react";
 import { toPng, toSvg } from "html-to-image";
 
@@ -44,6 +45,7 @@ export default function Toolbar() {
   const mermaidCode = useDiagramStore((s) => s.mermaidCode);
   const addNode = useDiagramStore((s) => s.addNode);
   const addCommentNode = useDiagramStore((s) => s.addCommentNode);
+  const autoLayoutNodes = useDiagramStore((s) => s.autoLayoutNodes);
   const activeDiagramId = useDiagramStore((s) => s.activeDiagramId);
   const diagrams = useDiagramStore((s) => s.diagrams);
   const saveDiagram = useDiagramStore((s) => s.saveDiagram);
@@ -237,6 +239,16 @@ export default function Toolbar() {
           title="Add comment"
         >
           <MessageSquare className="h-3.5 w-3.5" />
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-gray-500 hover:text-purple-600 hover:bg-purple-50"
+          onClick={() => autoLayoutNodes("TB")}
+          title="Auto-layout nodes (distribute evenly)"
+        >
+          <LayoutGrid className="h-3.5 w-3.5" />
         </Button>
 
         <div className="h-4 w-px bg-gray-200 mx-1" />

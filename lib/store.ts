@@ -9,6 +9,7 @@ import {
   type Connection,
   addEdge,
 } from "@xyflow/react";
+import { autoLayout } from "./auto-layout";
 
 export interface Diagram {
   id: string;
@@ -119,6 +120,9 @@ interface DiagramStore {
 
   // New: Comment node
   addCommentNode: (text?: string, position?: { x: number; y: number }) => void;
+
+  // Auto-layout
+  autoLayoutNodes: (direction?: "TB" | "LR" | "BT" | "RL") => void;
 
   // New: Style updates
   updateNodeStyle: (
@@ -631,6 +635,16 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
       activePane: "canvas",
       syncStatus: "diverged",
     })),
+
+  autoLayoutNodes: (direction = "TB") => {
+    const { nodes, edges } = get();
+    const layouted = autoLayout(nodes, edges, { direction });
+    set({
+      nodes: layouted,
+      activePane: "canvas",
+      syncStatus: "diverged",
+    });
+  },
 
   updateEdgeStyle: (edgeId, style) =>
     set((state) => ({
