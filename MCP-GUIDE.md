@@ -6,9 +6,12 @@ DiagramOS has a built-in MCP (Model Context Protocol) server that lets you save,
 
 ## Connection Details
 
-**MCP Endpoint:** `https://ip-172-31-41-142.tail998139.ts.net:3456/api/mcp`  
+**MCP Endpoint:** `https://diagramos.vercel.app/api/mcp`  
 **Transport:** Streamable HTTP (JSON-RPC 2.0)  
-**Auth:** None required (Tailscale network only)
+**Auth:** None required (public API)  
+**UI:** `https://diagramos.vercel.app`  
+**Storage:** DynamoDB (`diagramos-diagrams`, us-east-1)  
+**Infrastructure:** Vercel serverless functions (zero EC2 dependency)
 
 ## Setup for Claude Code
 
@@ -19,7 +22,7 @@ Add this to your project's `.mcp.json` file (in the project root):
   "mcpServers": {
     "diagramos": {
       "type": "url",
-      "url": "https://ip-172-31-41-142.tail998139.ts.net:3456/api/mcp"
+      "url": "https://diagramos.vercel.app/api/mcp"
     }
   }
 }
@@ -27,7 +30,21 @@ Add this to your project's `.mcp.json` file (in the project root):
 
 Or add via CLI:
 ```bash
-claude mcp add diagramos --transport http https://ip-172-31-41-142.tail998139.ts.net:3456/api/mcp
+claude mcp add diagramos --transport http https://diagramos.vercel.app/api/mcp
+```
+
+## Setup for Cursor
+
+Settings → MCP → Add server:
+- **Name:** diagramos
+- **URL:** `https://diagramos.vercel.app/api/mcp`
+
+## Setup for OpenAI Codex CLI
+
+Add to `~/.codex/config.toml`:
+```toml
+[mcp_servers.diagramos]
+url = "https://diagramos.vercel.app/api/mcp"
 ```
 
 ## Available Tools
@@ -61,6 +78,9 @@ Save or update a Mermaid diagram.
 - `mermaidCode` (string, required) — Valid Mermaid syntax
 - `id` (string, optional) — Diagram ID. Auto-generated from name if omitted.
 - `tags` (string[], optional) — Tags for categorization
+- `nodes` (array, optional) — React Flow nodes with positions
+- `edges` (array, optional) — React Flow edges
+- `positions` (object, optional) — Position map: `{ nodeId: { x, y, width?, height? } }`
 
 **Returns:** The saved diagram object.
 
@@ -86,7 +106,7 @@ Delete a diagram.
    - name: "Backend Architecture"
    - mermaidCode: "graph TD\n    API[API Gateway] --> Auth[Auth Service]\n    ..."
    - tags: ["architecture", "backend"]
-4. The diagram is now viewable in DiagramOS UI at https://ip-172-31-41-142.tail998139.ts.net:3456
+4. The diagram is now viewable at https://diagramos.vercel.app
 ```
 
 ### Update an existing diagram
@@ -141,24 +161,35 @@ classDiagram
 - **Diagram IDs** are auto-generated from the name (lowercased, hyphenated). "Auth Flow" → `auth-flow`
 - **Saving with the same name** updates the existing diagram (upsert behavior)
 - **Tags** are useful for filtering — use them for project names, diagram types, etc.
-- **The UI is live** — after saving via MCP, open the DiagramOS URL to see/edit the diagram visually
+- **The UI is live** — after saving via MCP, open https://diagramos.vercel.app to see/edit visually
 - **Mermaid is the source of truth** — the visual canvas is a rendering of the Mermaid code
 
 ## Verification
 
 Test the connection:
 ```bash
-curl -s https://ip-172-31-41-142.tail998139.ts.net:3456/api/mcp
-# Should return: {"name":"diagramos","version":"0.1.0",...}
+curl -s -X POST https://diagramos.vercel.app/api/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+Test listing diagrams:
+```bash
+curl -s -X POST https://diagramos.vercel.app/api/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"diagramos_list","arguments":{}}}'
 ```
 
 Test saving a diagram:
 ```bash
-curl -s -X POST https://ip-172-31-41-142.tail998139.ts.net:3456/api/mcp \
+curl -s -X POST https://diagramos.vercel.app/api/mcp \
   -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
   -d '{
     "jsonrpc": "2.0",
-    "id": 1,
+    "id": 3,
     "method": "tools/call",
     "params": {
       "name": "diagramos_save",
