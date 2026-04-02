@@ -158,17 +158,19 @@ function clientFallbackSync(nodes: any[], edges: any[]): string {
   for (const n of nodes) {
     if (n.type === "comment") continue; // skip comment nodes from mermaid
     const id = sanitizeId(n.id);
-    const label = (n.data as any)?.label || n.id;
+    const rawLabel = (n.data as any)?.label || n.id;
+    const color = (n.data as any)?.color;
+    const labelWithColor = color && color !== "white" ? `${rawLabel} :::${color}` : rawLabel;
     const shape = (n.data as any)?.shape || "rect";
     switch (shape) {
       case "diamond":
-        lines.push(`    ${id}{${label}}`);
+        lines.push(`    ${id}{${labelWithColor}}`);
         break;
       case "round":
-        lines.push(`    ${id}(${label})`);
+        lines.push(`    ${id}(${labelWithColor})`);
         break;
       default:
-        lines.push(`    ${id}[${label}]`);
+        lines.push(`    ${id}[${labelWithColor}]`);
     }
   }
   for (const e of edges) {

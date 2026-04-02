@@ -44,7 +44,7 @@ const TOOLS = [
   },
   {
     name: "diagramos_save",
-    description: "Save or update a Mermaid diagram. Returns the saved diagram.",
+    description: "Save or update a Mermaid diagram. Returns the saved diagram. IMPORTANT: To add background colors to nodes in DiagramOS, append ' :::colorName' to the node label inside the mermaidCode! Valid colors: white, blue, green, red, orange, purple, yellow, gray. Example: A[Database :::blue] --> B{Check :::orange}",
     inputSchema: {
       type: "object",
       properties: {

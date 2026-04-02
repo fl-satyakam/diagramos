@@ -125,16 +125,16 @@ const CustomNode: FC<NodeProps> = ({ id, data, selected }) => {
             onKeyDown={handleKeyDown}
             autoFocus
             className={`
-              bg-transparent text-center w-full outline-none text-gray-900
+              bg-transparent text-center outline-none text-gray-900
               border-b border-blue-400
-              ${isDiamond ? "-rotate-45 text-xs" : "text-sm"}
+              ${isDiamond ? "-rotate-45 text-xs w-[80px]" : "text-sm w-full min-w-[100px]"}
             `}
           />
         ) : (
           <span
             className={`
-              ${isDiamond ? "-rotate-45 block text-xs" : "text-sm"}
-              font-medium text-gray-700 select-none
+              ${isDiamond ? "-rotate-45 block text-xs max-w-[100px]" : "text-sm max-w-[200px]"}
+              font-medium text-gray-700 select-none break-words whitespace-pre-wrap
             `}
           >
             {(data as any)?.label || id}

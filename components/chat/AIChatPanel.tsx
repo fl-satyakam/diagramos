@@ -29,15 +29,13 @@ export default function AIChatPanel() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [chatMessages]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages, loading]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -156,7 +154,7 @@ export default function AIChatPanel() {
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 px-3 py-3" ref={scrollRef}>
+      <ScrollArea className="flex-1 px-3 py-3 overflow-y-auto min-h-0">
         {chatMessages.length === 0 && (
           <div className="text-center py-8 space-y-3">
             <Sparkles className="h-8 w-8 text-gray-300 mx-auto" />
@@ -208,6 +206,7 @@ export default function AIChatPanel() {
               <span>Thinking...</span>
             </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
 

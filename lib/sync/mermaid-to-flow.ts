@@ -37,6 +37,7 @@ interface RawNode {
   id: string;
   label: string;
   shape: string;
+  color?: string;
 }
 
 interface RawEdge {
@@ -44,6 +45,17 @@ interface RawEdge {
   target: string;
   label: string;
   style: string;
+}
+
+function extractColor(rawLabel: string) {
+  let label = rawLabel;
+  let color = "white";
+  const match = rawLabel.match(/:::(white|blue|green|red|orange|purple|yellow|gray)/i);
+  if (match) {
+    color = match[1].toLowerCase();
+    label = rawLabel.replace(match[0], "").trim();
+  }
+  return { label, color };
 }
 
 function parseWithRegex(code: string): ParsedDiagram {
@@ -79,23 +91,27 @@ function parseWithRegex(code: string): ParsedDiagram {
       const targetLabel = edgeMatch[9] || edgeMatch[10] || edgeMatch[11] || edgeMatch[12] || "";
 
       if (sourceLabel && !rawNodes.has(sourceId)) {
+        const { label, color } = extractColor(sourceLabel);
         rawNodes.set(sourceId, {
           id: sourceId,
-          label: sourceLabel,
+          label,
           shape: edgeMatch[2] ? "rect" : edgeMatch[3] ? "diamond" : edgeMatch[4] ? "round" : "rect",
+          color,
         });
       } else if (!rawNodes.has(sourceId)) {
-        rawNodes.set(sourceId, { id: sourceId, label: sourceId, shape: "rect" });
+        rawNodes.set(sourceId, { id: sourceId, label: sourceId, shape: "rect", color: "white" });
       }
 
       if (targetLabel && !rawNodes.has(targetId)) {
+        const { label, color } = extractColor(targetLabel);
         rawNodes.set(targetId, {
           id: targetId,
-          label: targetLabel,
+          label,
           shape: edgeMatch[9] ? "rect" : edgeMatch[10] ? "diamond" : edgeMatch[11] ? "round" : "rect",
+          color,
         });
       } else if (!rawNodes.has(targetId)) {
-        rawNodes.set(targetId, { id: targetId, label: targetId, shape: "rect" });
+        rawNodes.set(targetId, { id: targetId, label: targetId, shape: "rect", color: "white" });
       }
 
       rawEdges.push({
@@ -113,7 +129,8 @@ function parseWithRegex(code: string): ParsedDiagram {
     );
     if (nodeMatch) {
       const id = nodeMatch[1];
-      const label = nodeMatch[2] || nodeMatch[3] || nodeMatch[4] || nodeMatch[5] || nodeMatch[6] || id;
+      const rawLabel = nodeMatch[2] || nodeMatch[3] || nodeMatch[4] || nodeMatch[5] || nodeMatch[6] || id;
+      const { label, color } = extractColor(rawLabel);
       const shape = nodeMatch[2]
         ? "rect"
         : nodeMatch[3]
@@ -124,7 +141,7 @@ function parseWithRegex(code: string): ParsedDiagram {
         ? "subroutine"
         : "rect";
       if (!rawNodes.has(id)) {
-        rawNodes.set(id, { id, label, shape });
+        rawNodes.set(id, { id, label, shape, color });
       }
     }
   }
@@ -221,6 +238,7 @@ function layoutNodes(rawNodes: RawNode[], rawEdges: RawEdge[]): Node[] {
         data: {
           label: rn.label,
           shape: rn.shape,
+          color: rn.color || "white",
         },
       });
     }

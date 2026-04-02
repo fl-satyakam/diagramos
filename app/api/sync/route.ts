@@ -7,6 +7,7 @@ Rules:
 - Use the exact node labels provided
 - Preserve edge labels and directions
 - Use appropriate arrow types (--> for normal, -.-> for dashed)
+- If a node has a color property (e.g. blue, green, red, etc. and it's NOT white), append " :::color" to the label. For example, if label is "Database" and color is "blue", output A[Database :::blue]
 - Format cleanly with proper indentation
 - Start with "graph TD"`;
 
@@ -77,7 +78,9 @@ function deterministicSync(nodes: any[], edges: any[]): string {
 
   for (const node of nodes) {
     const id = sanitizeId(node.id);
-    const label = node.label || node.id;
+    const rawLabel = node.label || node.id;
+    const color = node.color;
+    const label = color && color !== "white" ? `${rawLabel} :::${color}` : rawLabel;
     const shape = node.shape || "rect";
 
     switch (shape) {
