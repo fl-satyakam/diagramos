@@ -1,5 +1,6 @@
 import type { Node, Edge } from "@xyflow/react";
 import mermaid from "mermaid";
+import { autoLayout } from "../auto-layout";
 
 mermaid.initialize({
   startOnLoad: false,
@@ -146,9 +147,18 @@ function parseWithRegex(code: string): ParsedDiagram {
     }
   }
 
-  // Auto-layout: simple grid/tree layout
+  // Auto-layout: using dagre via autoLayout
   const nodeArray = Array.from(rawNodes.values());
-  const nodes: Node[] = layoutNodes(nodeArray, rawEdges);
+  const initialNodes: Node[] = nodeArray.map((rn) => ({
+    id: rn.id,
+    type: "custom",
+    position: { x: 0, y: 0 },
+    data: {
+      label: rn.label,
+      shape: rn.shape,
+      color: rn.color || "white",
+    },
+  }));
 
   const edges: Edge[] = rawEdges.map((e, i) => ({
     id: `e-${i}-${e.source}-${e.target}`,
@@ -160,89 +170,7 @@ function parseWithRegex(code: string): ParsedDiagram {
     style: e.style === "thick" ? { strokeWidth: 3 } : undefined,
   }));
 
+  const nodes = autoLayout(initialNodes, edges, { direction: "TB" });
+
   return { nodes, edges };
-}
-
-function layoutNodes(rawNodes: RawNode[], rawEdges: RawEdge[]): Node[] {
-  if (rawNodes.length === 0) return [];
-
-  // Build adjacency for topological ordering
-  const outgoing = new Map<string, string[]>();
-  const incoming = new Map<string, string[]>();
-  const nodeIds = new Set(rawNodes.map((n) => n.id));
-
-  for (const e of rawEdges) {
-    if (!nodeIds.has(e.source) || !nodeIds.has(e.target)) continue;
-    outgoing.set(e.source, [...(outgoing.get(e.source) || []), e.target]);
-    incoming.set(e.target, [...(incoming.get(e.target) || []), e.source]);
-  }
-
-  // Find roots (no incoming edges)
-  const roots = rawNodes.filter(
-    (n) => !incoming.has(n.id) || incoming.get(n.id)!.length === 0
-  );
-  if (roots.length === 0 && rawNodes.length > 0) {
-    roots.push(rawNodes[0]);
-  }
-
-  // BFS level assignment
-  const levels = new Map<string, number>();
-  const queue = roots.map((r) => r.id);
-  for (const id of queue) levels.set(id, 0);
-
-  let qi = 0;
-  while (qi < queue.length) {
-    const current = queue[qi++];
-    const level = levels.get(current)!;
-    const children = outgoing.get(current) || [];
-    for (const child of children) {
-      if (!levels.has(child) || levels.get(child)! < level + 1) {
-        levels.set(child, level + 1);
-        if (!queue.includes(child)) queue.push(child);
-      }
-    }
-  }
-
-  // Assign levels to nodes without edges
-  for (const n of rawNodes) {
-    if (!levels.has(n.id)) levels.set(n.id, 0);
-  }
-
-  // Group by level
-  const byLevel = new Map<number, RawNode[]>();
-  for (const n of rawNodes) {
-    const lvl = levels.get(n.id) || 0;
-    byLevel.set(lvl, [...(byLevel.get(lvl) || []), n]);
-  }
-
-  const SPACING_X = 220;
-  const SPACING_Y = 120;
-
-  const nodes: Node[] = [];
-  const sortedLevels = Array.from(byLevel.keys()).sort((a, b) => a - b);
-
-  for (const level of sortedLevels) {
-    const levelNodes = byLevel.get(level)!;
-    const totalWidth = (levelNodes.length - 1) * SPACING_X;
-    const startX = -totalWidth / 2;
-
-    for (let i = 0; i < levelNodes.length; i++) {
-      const rn = levelNodes[i];
-      nodes.push({
-        id: rn.id,
-        type: "custom",
-        position: {
-          x: startX + i * SPACING_X + 300,
-          y: level * SPACING_Y + 60,
-        },
-        data: {
-          label: rn.label,
-          shape: rn.shape,
-          color: rn.color || "white",
-        },
-      });
-    }
-  }
-
-  return nodes;
 }
